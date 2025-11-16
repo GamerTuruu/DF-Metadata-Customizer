@@ -73,6 +73,10 @@ Prefer to run from source? See [Installation](#installation) above.
 
 ## 📖 Quick Start
 
+#### !!! IMPORTANT !!!
+   📁metadata_presets.json📁
+   have to be in same folder as main app (DF_Metadata_Customizer.exe or DF_Metadata_Customizer.py)
+
 1. Load Your MP3 Files:
    Click "Select Folder" and choose your Neuro-sama cover song folder
    The app will scan for MP3 files and extract existing metadata
@@ -81,16 +85,12 @@ Prefer to run from source? See [Installation](#installation) above.
    Typical fields:
    ```bash
    Date, Title, Artist, CoverArtist, Version, Discnumber, Track, Comment
-#### !!! IMPORTANT !!!
-   📁metadata_presets.json📁
-   have to be in same folder as main app (DF_Metadata_Customizer.exe or DF_Metadata_Customizer.py)
 3. Create Rules:
    Use the Title/Artist/Album tabs to create conditional rules
    Example: "IF CoverArtist is not empty THEN Title = {CoverArtist} - {Title}"
 4. Apply Changes:
    Preview changes in the bottom panel
    Use "Apply to Selected" or "Apply to All" to save changes
-
 ### 🔧 JSON Metadata Format
 The app expects MP3 files to contain JSON in their comment field (example):
 ```bash
