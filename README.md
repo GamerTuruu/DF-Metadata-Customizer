@@ -4,7 +4,7 @@
 
 A powerful metadata management tool designed specifically for Neuro-sama and Evil Neuro cover song archives. This application helps standardize ID3 tags across large collections, extract embedded JSON metadata, and apply consistent formatting rules - making your cover song library organized and player-friendly.
 
-![Screenshot](assets/screenshot.png)
+![Screenshot](assets/mainscreen.png)
 
 ## 🎵 What This Tool Does
 - Reads existing metadata from your MP3 files
@@ -90,3 +90,4 @@ The app expects MP3 files to contain JSON in their comment field (example):
   "Date": "2024",
   "Comment": "Additional notes"
 }
+
