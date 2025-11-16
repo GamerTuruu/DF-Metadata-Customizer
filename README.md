@@ -66,7 +66,7 @@ The app reads JSON metadata embedded in MP3 comment fields (common in fan archiv
 Get the ready-to-use Windows executable from the [Releases page](https://github.com/gamerturuu/df-metadata-customizer/releases).
 
 ### Source Code
-Prefer to run from source? See [Installation](## Installation) above.
+Prefer to run from source? See [Installation](##Installation) above.
 
 ## 🚀 Quick Download
 [![Download EXE](https://img.shields.io/badge/Download-Windows_EXE-blue?style=for-the-badge)](https://github.com/gamerturuu/df-metadata-customizer/releases/latest)
