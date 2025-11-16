@@ -81,7 +81,7 @@ Prefer to run from source? See [Installation](#installation) above.
    Typical fields:
    ```bash
    Date, Title, Artist, CoverArtist, Version, Discnumber, Track, Comment
-### !!! IMPORTANT !!!
+#### !!! IMPORTANT !!!
    📁metadata_presets.json📁
    have to be in same folder as main app (DF_Metadata_Customizer.exe or DF_Metadata_Customizer.py)
 3. Create Rules:
