@@ -1,7 +1,8 @@
 # Python
 __pycache__/
-*.py[cod]
-*$py.class
+*.pyc
+*.pyo
+*.pyd
 *.so
 .Python
 build/
@@ -19,6 +20,11 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+
+# PyInstaller
+*.spec
+dist/
+build/
 
 # IDE
 .vscode/
