@@ -68,7 +68,6 @@ The app reads JSON metadata embedded in MP3 comment fields (common in fan archiv
    MP3 files should have JSON metadata in their comment fields
    Typical fields:
    ```bash
-   ```bash
    Date, Title, Artist, CoverArtist, Version, Discnumber, Track, Comment
 3. Create Rules:
    Use the Title/Artist/Album tabs to create conditional rules
@@ -90,4 +89,5 @@ The app expects MP3 files to contain JSON in their comment field (example):
   "Date": "2024",
   "Comment": "Additional notes"
 }
+
 
