@@ -60,6 +60,17 @@ The app reads JSON metadata embedded in MP3 comment fields (common in fan archiv
 
 2. Run DF_Metadata_Customizer.exe - no installation required
 
+## 📦 Downloads
+
+### Latest Release
+Get the ready-to-use Windows executable from the [Releases page](https://github.com/gamerturuu/df-metadata-customizer/releases).
+
+### Source Code
+Prefer to run from source? See [Installation](#installation) above.
+
+## 🚀 Quick Download
+[![Download EXE](https://img.shields.io/badge/Download-Windows_EXE-blue?style=for-the-badge)](https://github.com/gamerturuu/df-metadata-customizer/releases/latest)
+
 ## 📖 Quick Start
 
 1. Load Your MP3 Files:
@@ -70,6 +81,10 @@ The app reads JSON metadata embedded in MP3 comment fields (common in fan archiv
    Typical fields:
    ```bash
    Date, Title, Artist, CoverArtist, Version, Discnumber, Track, Comment
+### !!!IMPORTANT!!!
+   ```bash
+   metadata_presets.json
+   have to be in same folder as main app
 3. Create Rules:
    Use the Title/Artist/Album tabs to create conditional rules
    Example: "IF CoverArtist is not empty THEN Title = {CoverArtist} - {Title}"
