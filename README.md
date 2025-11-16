@@ -57,7 +57,7 @@ The app reads JSON metadata embedded in MP3 comment fields (common in fan archiv
 
 2. Run DF_Metadata_Customizer.exe - no installation required
 
-📖 Quick Start
+## 📖 Quick Start
 
 1. Load Your MP3 Files:
     Click "Select Folder" and choose your Neuro-sama cover song folder
@@ -72,7 +72,7 @@ The app reads JSON metadata embedded in MP3 comment fields (common in fan archiv
     Preview changes in the bottom panel
     Use "Apply to Selected" or "Apply to All" to save changes
 
-🔧 JSON Metadata Format
+### 🔧 JSON Metadata Format
 The app expects MP3 files to contain JSON in their comment field (example):
 {
   "Title": "Original Song Name",
