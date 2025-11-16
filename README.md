@@ -62,17 +62,20 @@ The app reads JSON metadata embedded in MP3 comment fields (common in fan archiv
 ## 📖 Quick Start
 
 1. Load Your MP3 Files:
-    Click "Select Folder" and choose your Neuro-sama cover song folder
-    The app will scan for MP3 files and extract existing metadata
+   Click "Select Folder" and choose your Neuro-sama cover song folder
+   The app will scan for MP3 files and extract existing metadata
 2. Understand the Data Structure:
-    MP3 files should have JSON metadata in their comment fields
-    Typical fields: Date, Title, Artist, CoverArtist, Version, Discnumber, Track, Comment
+   MP3 files should have JSON metadata in their comment fields
+   Typical fields:
+   ```bash
+   ```bash
+   Date, Title, Artist, CoverArtist, Version, Discnumber, Track, Comment
 3. Create Rules:
-    Use the Title/Artist/Album tabs to create conditional rules
-    Example: "IF CoverArtist is not empty THEN Title = {CoverArtist} - {Title}"
+   Use the Title/Artist/Album tabs to create conditional rules
+   Example: "IF CoverArtist is not empty THEN Title = {CoverArtist} - {Title}"
 4. Apply Changes:
-    Preview changes in the bottom panel
-    Use "Apply to Selected" or "Apply to All" to save changes
+   Preview changes in the bottom panel
+   Use "Apply to Selected" or "Apply to All" to save changes
 
 ### 🔧 JSON Metadata Format
 The app expects MP3 files to contain JSON in their comment field (example):
