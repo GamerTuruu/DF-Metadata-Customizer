@@ -39,7 +39,7 @@ This tool is perfect for managing cover songs from:
 
 The app reads JSON metadata embedded in MP3 comment fields (common in fan archives) and lets you customize how the tags appear in music players.
 
-## 🚀 Installation {#installation}
+## Installation
 
 ### Option 1: Python Script (All Platforms)
 
