@@ -12,32 +12,32 @@
   "artist": [
     {
       "logic": "AND",
-      "if_field": "CoverArtist",
+      "if_field": "Special",
       "if_operator": "is",
-      "if_value": "Neuro",
-      "then_template": "{CoverArtist} ({Artist})",
+      "if_value": "1",
+      "then_template": "({CoverArtist}) {Artist}",
       "is_first": true
     },
     {
       "logic": "OR",
       "if_field": "CoverArtist",
       "if_operator": "is",
-      "if_value": "Evil",
-      "then_template": "{CoverArtist} ({Artist})"
+      "if_value": "Neuro",
+      "then_template": "(Neuro.v{Version}) {Artist}"
     },
     {
       "logic": "OR",
       "if_field": "CoverArtist",
       "if_operator": "is",
-      "if_value": "Neuro & Evil",
-      "then_template": "Duet (Neuro & Evil) ({Artist})"
+      "if_value": "Evil",
+      "then_template": "(Evil.v{Version}) {Artist}"
     },
     {
       "logic": "OR",
       "if_field": "CoverArtist",
       "if_operator": "is not empty",
       "if_value": "",
-      "then_template": "Duet ({CoverArtist}) ({Artist})"
+      "then_template": "(Duet.v{Version}) {Artist}"
     }
   ],
   "album": [

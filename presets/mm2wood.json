@@ -1,0 +1,193 @@
+{
+  "title": [
+    {
+      "logic": "AND",
+      "if_field": "CoverArtist",
+      "if_operator": "is",
+      "if_value": "Neuro",
+      "then_template": "",
+      "is_first": true
+    },
+    {
+      "logic": "AND",
+      "if_field": "Version",
+      "if_operator": "is",
+      "if_value": "3.2",
+      "then_template": "{Title} (v3.2)"
+    },
+    {
+      "logic": "OR",
+      "if_field": "CoverArtist",
+      "if_operator": "is",
+      "if_value": "Neuro",
+      "then_template": ""
+    },
+    {
+      "logic": "AND",
+      "if_field": "Version",
+      "if_operator": "is not latest version",
+      "if_value": "",
+      "then_template": "{Title} (v.{Version})"
+    },
+    {
+      "logic": "OR",
+      "if_field": "CoverArtist",
+      "if_operator": "is",
+      "if_value": "Neuro",
+      "then_template": ""
+    },
+    {
+      "logic": "AND",
+      "if_field": "Version",
+      "if_operator": "is latest version",
+      "if_value": "",
+      "then_template": "{Title}"
+    },
+    {
+      "logic": "OR",
+      "if_field": "CoverArtist",
+      "if_operator": "is",
+      "if_value": "Evil",
+      "then_template": ""
+    },
+    {
+      "logic": "AND",
+      "if_field": "Version",
+      "if_operator": "is latest version",
+      "if_value": "",
+      "then_template": ""
+    },
+    {
+      "logic": "AND",
+      "if_field": "Version",
+      "if_operator": "is",
+      "if_value": "1",
+      "then_template": "{Title} (Evil)"
+    },
+    {
+      "logic": "OR",
+      "if_field": "CoverArtist",
+      "if_operator": "is",
+      "if_value": "Evil",
+      "then_template": ""
+    },
+    {
+      "logic": "AND",
+      "if_field": "Version",
+      "if_operator": "is latest version",
+      "if_value": "",
+      "then_template": ""
+    },
+    {
+      "logic": "AND",
+      "if_field": "Version",
+      "if_operator": "is",
+      "if_value": "2",
+      "then_template": "{Title} (Evil) (v.{Version})"
+    },
+    {
+      "logic": "OR",
+      "if_field": "CoverArtist",
+      "if_operator": "is",
+      "if_value": "Evil",
+      "then_template": ""
+    },
+    {
+      "logic": "AND",
+      "if_field": "Version",
+      "if_operator": "is not empty",
+      "if_value": "",
+      "then_template": "{Title} (Evil) (v.{Version})"
+    },
+    {
+      "logic": "OR",
+      "if_field": "CoverArtist",
+      "if_operator": "is",
+      "if_value": "Neuro & Evil",
+      "then_template": ""
+    },
+    {
+      "logic": "AND",
+      "if_field": "Version",
+      "if_operator": "is latest version",
+      "if_value": "",
+      "then_template": ""
+    },
+    {
+      "logic": "AND",
+      "if_field": "Version",
+      "if_operator": "is",
+      "if_value": "2",
+      "then_template": "{Title} (Duet) (v.{Version})"
+    },
+    {
+      "logic": "OR",
+      "if_field": "CoverArtist",
+      "if_operator": "is",
+      "if_value": "Neuro & Evil",
+      "then_template": ""
+    },
+    {
+      "logic": "AND",
+      "if_field": "Version",
+      "if_operator": "is latest version",
+      "if_value": "",
+      "then_template": ""
+    },
+    {
+      "logic": "AND",
+      "if_field": "Version",
+      "if_operator": "is",
+      "if_value": "1",
+      "then_template": "{Title} (Duet)"
+    },
+    {
+      "logic": "OR",
+      "if_field": "CoverArtist",
+      "if_operator": "is not empty",
+      "if_value": "",
+      "then_template": "{Title} (Duet) (feat. {CoverArtist})"
+    }
+  ],
+  "artist": [
+    {
+      "logic": "AND",
+      "if_field": "CoverArtist",
+      "if_operator": "is",
+      "if_value": "Neuro",
+      "then_template": "{Artist} (feat. Neuro-sama)",
+      "is_first": true
+    },
+    {
+      "logic": "OR",
+      "if_field": "CoverArtist",
+      "if_operator": "is",
+      "if_value": "Evil",
+      "then_template": "{Artist} (feat. Evil)"
+    },
+    {
+      "logic": "OR",
+      "if_field": "CoverArtist",
+      "if_operator": "is",
+      "if_value": "Neuro & Evil",
+      "then_template": "{Artist} (feat. Evil & Neuro-sama)"
+    },
+    {
+      "logic": "OR",
+      "if_field": "CoverArtist",
+      "if_operator": "is not empty",
+      "if_value": "",
+      "then_template": "{Artist} (feat. {CoverArtist})"
+    }
+  ],
+  "album": [
+    {
+      "logic": "AND",
+      "if_field": "Discnumber",
+      "if_operator": "is not empty",
+      "if_value": "",
+      "then_template": "NEURO-SAMA KARAOKE COVERS: VOL {Discnumber}",
+      "is_first": true
+    }
+  ]
+}
