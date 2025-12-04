@@ -71,13 +71,13 @@ The app reads JSON metadata embedded in MP3 comment fields (common in fan archiv
    pip install -r requirements.txt
 3. Run the application:
    ```bash
-   python DF_Metadata_Customizer.py
+   python DF_Metadata_Customizer_v1.2.0.py
 
 ### Option 2: Windows EXE (No Python Required)
 
 1. Download the latest release from the Releases page
 
-2. Run DF_Metadata_Customizer.exe - no installation required
+2. Run DF_Metadata_Customizer_v1.2.0.exe - no installation required
 
 ## 📦 Downloads
 
@@ -184,3 +184,4 @@ Toggle between dark and light themes using the ☀️/🌙 button in the top-rig
 
 
 Please use the [GitHub Issues](https://github.com/gamerturuu/df-metadata-customizer/issues) page to report bugs or request new features.
+
