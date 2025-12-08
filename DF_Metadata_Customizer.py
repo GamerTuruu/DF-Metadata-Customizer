@@ -357,81 +357,134 @@ class StatusPopup(ctk.CTkToplevel):
     def __init__(self, parent, stats, **kwargs):
         super().__init__(parent)
         self.title("Song Statistics")
-        self.geometry("300x400")
+        self.geometry("320x520")  # Slightly taller
         self.resizable(False, False)
         
-        # Make it transient and set position near cursor
+        # Make it transient first
         self.transient(parent)
-        self.grab_set()
         
-        # Position near cursor
-        x = parent.winfo_pointerx() + 10
-        y = parent.winfo_pointery() - 520
+        # Position near parent window - FIXED: Calculate after window is created
+        self.update_idletasks()  # Get proper window dimensions
+        
+        parent_x = parent.winfo_rootx()
+        parent_y = parent.winfo_rooty()
+        parent_width = parent.winfo_width()
+        parent_height = parent.winfo_height()
+        
+        # Position to the right of main window
+        x = parent_x + parent_width + 20
+        y = parent_y + 50
+        
+        # Make sure it's on screen
+        screen_width = self.winfo_screenwidth()
+        if x + 320 > screen_width:
+            x = parent_x + 100  # Position to the left if not enough space on right
+        
+        if y + 520 > self.winfo_screenheight():
+            y = 50  # Move to top if too low
+            
         self.geometry(f"+{x}+{y}")
         
+        # Configure grid
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(0, weight=1)
         
-        # Create scrollable frame
-        self.scrollable_frame = ctk.CTkScrollableFrame(self)
-        self.scrollable_frame.grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
-        self.scrollable_frame.grid_columnconfigure(0, weight=1)
+        # Create main frame with padding
+        main_frame = ctk.CTkFrame(self)
+        main_frame.grid(row=0, column=0, sticky="nsew", padx=15, pady=15)
+        main_frame.grid_columnconfigure(0, weight=1)
         
         # Title
-        title_label = ctk.CTkLabel(self.scrollable_frame, text="Song Statistics", 
-                                  font=ctk.CTkFont(weight="bold", size=16))
-        title_label.grid(row=0, column=0, sticky="w", pady=(0, 10))
+        title_label = ctk.CTkLabel(main_frame, text="📊 Song Statistics", 
+                                  font=ctk.CTkFont(weight="bold", size=18))
+        title_label.grid(row=0, column=0, sticky="w", pady=(0, 20))
         
-        # Create detail labels with improved organization
-        details = [
-            ("All songs", "all_songs"),
-            ("Unique songs (Title, Artist)", "unique_ta"),
-            ("Unique songs (Title, Artist, CoverArtist)", "unique_tac"),
-            ("--- Neuro Solos ---", "neuro_header"),
-            ("Neuro Solos (unique)", "neuro_solos_unique"),
-            ("Neuro Solos (total)", "neuro_solos_total"),
-            ("--- Evil Solos ---", "evil_header"), 
-            ("Evil Solos (unique)", "evil_solos_unique"),
-            ("Evil Solos (total)", "evil_solos_total"),
-            ("--- Duets ---", "duets_header"),
-            ("Neuro & Evil Duets (unique)", "duets_unique"),
-            ("Neuro & Evil Duets (total)", "duets_total"),
-            ("--- Other ---", "other_header"),
-            ("Other songs (unique)", "other_unique"),
-            ("Other songs (total)", "other_total")
+        # Statistics rows
+        stats_data = [
+            ("🎵 All Songs:", "all_songs"),
+            ("🎯 Unique (Title+Artist):", "unique_ta"),
+            ("🎯 Unique (Title+Artist+Cover):", "unique_tac"),
+            ("", "spacer1"),  # Spacer
+            ("🧠 Neuro Solos (unique):", "neuro_solos_unique"),
+            ("🧠 Neuro Solos (total):", "neuro_solos_total"),
+            ("", "spacer2"),  # Spacer
+            ("😈 Evil Solos (unique):", "evil_solos_unique"),
+            ("😈 Evil Solos (total):", "evil_solos_total"),
+            ("", "spacer3"),  # Spacer
+            ("👥 Duets (unique):", "duets_unique"),
+            ("👥 Duets (total):", "duets_total"),
+            ("", "spacer4"),  # Spacer
+            ("📚 Other Songs (unique):", "other_unique"),
+            ("📚 Other Songs (total):", "other_total")
         ]
         
-        self.detail_labels = {}
-        for i, (text, key) in enumerate(details):
-            if "---" in text:
-                # Header style
-                label = ctk.CTkLabel(self.scrollable_frame, text=text, anchor="w", 
-                                   font=ctk.CTkFont(weight="bold"), text_color="#888")
-            else:
-                # Regular stat
-                label = ctk.CTkLabel(self.scrollable_frame, text=f"{text}: {stats.get(key, 0)}", anchor="w")
-            label.grid(row=i+1, column=0, sticky="ew", padx=5, pady=2)
-            self.detail_labels[key] = label
+        self.stat_labels = {}
+        row_idx = 1
+        
+        for label_text, stat_key in stats_data:
+            if "spacer" in stat_key:
+                # Empty row as spacer
+                spacer = ctk.CTkLabel(main_frame, text="")
+                spacer.grid(row=row_idx, column=0, pady=3)
+                row_idx += 1
+                continue
+            
+            # Create frame for each stat row
+            stat_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+            stat_frame.grid(row=row_idx, column=0, sticky="ew", pady=1)
+            stat_frame.grid_columnconfigure(0, weight=1)
+            stat_frame.grid_columnconfigure(1, weight=0)
+            
+            # Label
+            label = ctk.CTkLabel(stat_frame, text=label_text, anchor="w", 
+                               font=ctk.CTkFont(size=13))
+            label.grid(row=0, column=0, sticky="w", padx=(0, 10))
+            
+            # Value (with highlighting)
+            value = stats.get(stat_key, 0)
+            value_label = ctk.CTkLabel(stat_frame, text=str(value), 
+                                     font=ctk.CTkFont(weight="bold", size=14),
+                                     text_color="#4cc9f0")  # Bright blue
+            value_label.grid(row=0, column=1, sticky="e")
+            
+            self.stat_labels[stat_key] = value_label
+            row_idx += 1
+        
+        # Add a separator before close button
+        separator = ctk.CTkFrame(main_frame, height=2, fg_color="#444")
+        separator.grid(row=row_idx, column=0, sticky="ew", pady=15)
+        row_idx += 1
         
         # Close button
-        close_btn = ctk.CTkButton(self, text="Close", command=self.destroy, width=100)
-        close_btn.grid(row=1, column=0, pady=10)
+        close_btn = ctk.CTkButton(main_frame, text="Close", 
+                                command=self.destroy, 
+                                width=120, height=35,
+                                fg_color="#3b8ed0", hover_color="#367abf")
+        close_btn.grid(row=row_idx, column=0, pady=(5, 0))
         
-        # Make it modal
+        # Update window to ensure it's visible
+        self.update()
+        self.update_idletasks()
+        
+        # Now make it modal - FIXED: Wait until window is viewable
         self.focus_set()
-        self.wait_visibility()
-        self.grab_set()
+        
+        # Try grab with error handling
+        try:
+            self.grab_set()
+        except tk.TclError as e:
+            print(f"Warning: Could not grab focus: {e}")
+            # Window might already have focus
+            
+        # Force update of stats
+        self.update_stats(stats)
         
     def update_stats(self, stats):
         """Update all statistics displays"""
-        for key, label in self.detail_labels.items():
-            if "header" in key:
-                continue  # Skip headers
-            value = stats.get(key, 0)
-            # Get the original text prefix and update value
-            current_text = label.cget("text")
-            prefix = current_text.split(":")[0] if ":" in current_text else current_text
-            label.configure(text=f"{prefix}: {value}")
+        for key, label in self.stat_labels.items():
+            if key in stats:
+                value = stats[key]
+                label.configure(text=str(value))
 
 
 # -------------------------------
@@ -980,13 +1033,12 @@ class DFApp(ctk.CTk):
         if not self.mp3_files:
             self.stats = {key: 0 for key in self.stats.keys()}
             self._update_status_display()
+            print("No files loaded, stats reset to 0")
             return
         
         # Initialize counters
-        unique_ta = set()  # Unique by Title + Artist
-        unique_tac = set() # Unique by Title + Artist + CoverArtist
-        
-        # Separate counters for different categories
+        unique_ta = set()
+        unique_tac = set()
         neuro_solos_unique = set()
         neuro_solos_total = 0
         evil_solos_unique = set()
@@ -997,6 +1049,7 @@ class DFApp(ctk.CTk):
         other_total = 0
         
         # Process all files
+        processed = 0
         for file_path in self.mp3_files:
             jsond = self.get_file_data(file_path)
             if not jsond:
@@ -1019,21 +1072,21 @@ class DFApp(ctk.CTk):
 
             # Categorize based on CoverArtist            
             if coverartist == "Neuro & Evil":
-                # Duet (both Neuro and Evil)
                 duets_unique.add(ta_key)
                 duets_total += 1
             elif coverartist == "Neuro":
-                # Neuro Solo
                 neuro_solos_unique.add(ta_key)
                 neuro_solos_total += 1
             elif coverartist == "Evil":
-                # Evil Solo
                 evil_solos_unique.add(ta_key)
                 evil_solos_total += 1
             else:
-                # Other (Neuro & Vedal, or any other combination)
                 other_unique.add(ta_key)
                 other_total += 1
+                
+            processed += 1
+            if processed % 100 == 0:
+                print(f"Processed {processed}/{len(self.mp3_files)} files...")
         
         # Update statistics
         self.stats = {
@@ -1049,6 +1102,10 @@ class DFApp(ctk.CTk):
             'other_unique': len(other_unique),
             'other_total': other_total
         }
+        
+        print(f"Statistics calculated:")
+        for key, value in self.stats.items():
+            print(f"  {key}: {value}")
         
         # Update the status display
         self._update_status_display()
@@ -1275,16 +1332,64 @@ class DFApp(ctk.CTk):
         self.play_song(self.mp3_files[idx])
 
     def play_song(self, file_path):
-        """Play a song using the system's default audio player"""
+        """Play a song using the system's default audio player - IMPROVED for Ubuntu"""
         try:
             if platform.system() == "Windows":
                 os.startfile(file_path)
             elif platform.system() == "Darwin":  # macOS
                 subprocess.run(["open", file_path])
             else:  # Linux and other Unix-like
-                subprocess.run(["xdg-open", file_path])
+                # Try multiple methods for Linux/Ubuntu
+                methods = [
+                    # Method 1: Try xdg-open (most common)
+                    ["xdg-open", file_path],
+                    # Method 2: Try mpv (common media player)
+                    ["mpv", "--no-terminal", file_path],
+                    # Method 3: Try vlc
+                    ["vlc", file_path],
+                    # Method 4: Try rhythmbox (Ubuntu default music player)
+                    ["rhythmbox", file_path],
+                    # Method 5: Try totem (GNOME video player)
+                    ["totem", file_path],
+                    # Method 6: Try mplayer (fallback)
+                    ["mplayer", file_path]
+                ]
+                
+                success = False
+                error_message = ""
+                
+                for cmd in methods:
+                    try:
+                        # Check if command exists
+                        if shutil.which(cmd[0]) is not None:
+                            # Run with subprocess.Popen to avoid blocking
+                            subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                            success = True
+                            print(f"Playing with: {' '.join(cmd)}")
+                            break
+                    except Exception as e:
+                        error_message = str(e)
+                        continue
+                
+                if not success:
+                    # If all else fails, show a dialog with installation instructions
+                    self.show_audio_player_instructions()
+                    
         except Exception as e:
             messagebox.showerror("Playback Error", f"Could not play file:\n{str(e)}")
+
+    def show_audio_player_instructions(self):
+        """Show instructions for installing audio players on Ubuntu"""
+        instructions = """To play audio files, you need a media player installed.
+
+    Recommended players for Ubuntu:
+    1. mpv (lightweight): sudo apt install mpv
+    2. VLC (full-featured): sudo apt install vlc
+    3. Rhythmbox (music player): sudo apt install rhythmbox
+
+    After installation, try double-clicking again."""
+        
+        messagebox.showinfo("Media Player Required", instructions)
 
     # -------------------------
     # NEW: JSON change detection
