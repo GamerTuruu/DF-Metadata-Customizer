@@ -186,4 +186,7 @@ Toggle between dark and light themes using the ☀️/🌙 button in the top-rig
 Please use the [GitHub Issues](https://github.com/gamerturuu/df-metadata-customizer/issues) page to report bugs or request new features.
 
 
+## License
+This project is licensed under the MIT License.
+
 
