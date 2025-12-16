@@ -67,3 +67,32 @@ class OptimizedImageCache:
         self._cache.clear()
         self._resized_cache.clear()
         self._access_order.clear()
+
+def optimize_image_for_display(img: Image.Image | None) -> Image.Image | None:
+    """Optimize image for fast display - resize to fit within square container."""
+    if not img:
+        return None
+
+    # Target square size
+    square_size = (170, 170)  # Can be edited to match your display size
+
+    # Calculate the maximum size that fits within the square while maintaining aspect ratio
+    img_ratio = img.width / img.height
+
+    if img_ratio >= 1:
+        # Landscape or square image - fit to width
+        new_width = square_size[0]
+        new_height = int(square_size[0] / img_ratio)
+    else:
+        # Portrait image - fit to height
+        new_height = square_size[1]
+        new_width = int(square_size[1] * img_ratio)
+
+    # Resize the image to fit within the square container
+    resized_img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
+
+    # Convert to RGB if necessary
+    if resized_img.mode != "RGB":
+        resized_img = resized_img.convert("RGB")
+
+    return resized_img

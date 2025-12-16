@@ -1,8 +1,12 @@
 """Utilities for reading/writing MP3 ID3 tags and embedded JSON metadata."""
 import json
+import os
+import platform
 import re
 from functools import lru_cache
 from io import BytesIO
+import shutil
+import subprocess
 
 from mutagen.id3 import APIC, COMM, ID3, TALB, TDRC, TIT2, TPE1, TPOS, TRCK, ID3NoHeaderError
 from mutagen.mp3 import MP3
@@ -151,4 +155,46 @@ def write_id3_tags(
     except Exception as e:
         print("Error writing tags:", e)
         return False
+    return True
+
+def play_song(file_path) -> bool:
+    """Play a song using the system's default audio player - IMPROVED for Ubuntu"""
+    if platform.system() == "Windows":
+        os.startfile(file_path)
+    elif platform.system() == "Darwin":  # macOS
+        subprocess.run(["open", file_path])
+    else:  # Linux and other Unix-like
+        # Try multiple methods for Linux/Ubuntu
+        methods = [
+            # Method 1: Try xdg-open (most common)
+            ["xdg-open", file_path],
+            # Method 2: Try mpv (common media player)
+            ["mpv", "--no-terminal", file_path],
+            # Method 3: Try vlc
+            ["vlc", file_path],
+            # Method 4: Try rhythmbox (Ubuntu default music player)
+            ["rhythmbox", file_path],
+            # Method 5: Try totem (GNOME video player)
+            ["totem", file_path],
+            # Method 6: Try mplayer (fallback)
+            ["mplayer", file_path],
+        ]
+
+        success = False
+        error_message = ""
+
+        for cmd in methods:
+            try:
+                # Check if command exists
+                if shutil.which(cmd[0]) is not None:
+                    # Run with subprocess.Popen to avoid blocking
+                    subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    success = True
+                    print(f"Playing with: {' '.join(cmd)}")
+                    break
+            except Exception as e:
+                error_message = str(e)
+                continue
+
+        return success
     return True

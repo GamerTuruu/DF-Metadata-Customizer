@@ -1,13 +1,8 @@
 """Database Reformatter package."""
 
+from . import image_utils, mp3_utils
 from .dialogs import ProgressDialog, StatisticsDialog
-from .image_cache import OptimizedImageCache
-from .mp3_utils import (
-    extract_json_from_mp3_cached,
-    read_cover_from_mp3,
-    write_id3_tags,
-    write_json_to_mp3,
-)
+from .image_utils import OptimizedImageCache
 from .widgets import RuleRow, SortRuleRow
 
 __all__ = [
@@ -16,8 +11,6 @@ __all__ = [
     "RuleRow",
     "SortRuleRow",
     "StatisticsDialog",
-    "extract_json_from_mp3_cached",
-    "read_cover_from_mp3",
-    "write_id3_tags",
-    "write_json_to_mp3",
+    "image_utils",
+    "mp3_utils",
 ]
