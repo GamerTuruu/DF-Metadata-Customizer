@@ -8,7 +8,7 @@ import customtkinter as ctk
 class ProgressDialog(ctk.CTkToplevel):
     """Display the progress of a generic operation."""
 
-    def __init__(self, parent: ctk.CTk, title: str="Processing...") -> None:
+    def __init__(self, parent: ctk.CTk, title: str = "Processing...") -> None:
         """Display the progress of a generic operation."""
         super().__init__(parent)
         self.title(title)
@@ -56,7 +56,7 @@ class ProgressDialog(ctk.CTkToplevel):
         # Force the window to appear immediately
         self.update()
 
-    def update_progress(self, current: int, total: int, text: str="") -> bool:
+    def update_progress(self, current: int, total: int, text: str = "") -> bool:
         """Update progress bar. Returns False if cancelled."""
         if self.cancelled:
             return False
@@ -174,7 +174,10 @@ class StatisticsDialog(ctk.CTkToplevel):
             # Value (with highlighting)
             value = stats.get(stat_key, 0)
             value_label = ctk.CTkLabel(
-                stat_frame, text=str(value), font=ctk.CTkFont(weight="bold", size=14), text_color="#4cc9f0"
+                stat_frame,
+                text=str(value),
+                font=ctk.CTkFont(weight="bold", size=14),
+                text_color="#4cc9f0",
             )  # Bright blue
             value_label.grid(row=0, column=1, sticky="e")
 

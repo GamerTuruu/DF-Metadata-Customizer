@@ -1,9 +1,9 @@
+"""Database Reformatter Application - Main Window and Logic."""
+
+import contextlib
 import json
-import os
-import platform
 import re
 import shutil
-import subprocess
 import sys
 import threading
 import time
@@ -15,9 +15,11 @@ from tkinter import filedialog, messagebox, simpledialog, ttk
 import customtkinter as ctk
 from PIL import Image
 
+from df_metadata_customizer import image_utils, mp3_utils
 from df_metadata_customizer.dialogs import ProgressDialog, StatisticsDialog
+from df_metadata_customizer.file_manager import FileManager
 from df_metadata_customizer.image_utils import OptimizedImageCache
-from  df_metadata_customizer import image_utils, mp3_utils
+from df_metadata_customizer.rule_manager import RuleManager
 from df_metadata_customizer.widgets import RuleRow, SortRuleRow
 
 ctk.set_appearance_mode("System")
@@ -25,11 +27,16 @@ ctk.set_default_color_theme("dark-blue")
 
 
 class DFApp(ctk.CTk):
-    def __init__(self):
+    """Main application window for Database Reformatter."""
+
+    def __init__(self) -> None:
+        """Initialize the main application window."""
         super().__init__()
         self.title("Database Reformatter — Metadata Customizer")
         self.geometry("1350x820")
         self.minsize(1100, 700)
+
+        self.file_manager = FileManager()
 
         # Data model
         self.mp3_files = []  # list of file paths
@@ -52,7 +59,6 @@ class DFApp(ctk.CTk):
             "special",
             "file",
         ]
-        self.file_data_cache = {}  # Cache for file metadata (stores tuple: (json_data, prefix_text))
         self.scan_thread = None  # Background scanning thread
         self.visible_file_indices = []  # Track visible files for prev/next navigation
         self.progress_dialog = None  # Progress dialog reference
@@ -129,10 +135,8 @@ class DFApp(ctk.CTk):
         # Build UI
         self._build_ui()
         # Load saved settings (if any)
-        try:
+        with contextlib.suppress(Exception):
             self.load_settings()
-        except Exception:
-            pass
         # default presets container
         self.presets = {}
 
@@ -140,19 +144,17 @@ class DFApp(ctk.CTk):
         self._start_cover_loading_thread()
 
         # Ensure settings are saved on exit
-        try:
+        with contextlib.suppress(Exception):
             self.protocol("WM_DELETE_WINDOW", self._on_close)
-        except Exception:
-            pass
 
-    def _start_cover_loading_thread(self):
-        """Start the dedicated cover loading thread"""
+    def _start_cover_loading_thread(self) -> None:
+        """Start the dedicated cover loading thread."""
         self.cover_loading_active = True
         self.cover_loading_thread = threading.Thread(target=self._cover_loading_worker, daemon=True)
         self.cover_loading_thread.start()
 
-    def _cover_loading_worker(self):
-        """Worker thread for loading cover images - FIXED: Better queue management"""
+    def _cover_loading_worker(self) -> None:
+        """Worker thread for loading cover images - FIXED: Better queue management."""
         while self.cover_loading_active:
             if self.cover_loading_queue:
                 path, callback = self.cover_loading_queue.pop(0)
@@ -167,9 +169,8 @@ class DFApp(ctk.CTk):
                         # Call callback in main thread
                         if callback:
                             self.after(0, lambda: callback(optimized_img))
-                    else:
-                        if callback:
-                            self.after(0, lambda: callback(None))
+                    elif callback:
+                        self.after(0, lambda: callback(None))
                 except Exception as e:
                     print(f"Error loading cover in worker: {e}")
                     if callback:
@@ -178,12 +179,12 @@ class DFApp(ctk.CTk):
                 # FIXED: Longer sleep to reduce CPU usage
                 time.sleep(0.05)  # Increased from 0.01 to 0.05
 
-    def force_preview_update(self):
-        """Force immediate preview update, bypassing any cover loading delays"""
+    def force_preview_update(self) -> None:
+        """Force immediate preview update, bypassing any cover loading delays."""
         if self.current_json:
             self.update_preview()
 
-    def _build_ui(self):
+    def _build_ui(self) -> None:
         # Use a PanedWindow for draggable splitter
         self.paned = tk.PanedWindow(self, orient="horizontal", sashrelief="raised", sashwidth=6)
         self.paned.pack(fill="both", expand=True, padx=8, pady=8)
@@ -219,7 +220,10 @@ class DFApp(ctk.CTk):
 
         self.select_all_var = tk.BooleanVar(value=False)
         self.chk_select_all = ctk.CTkCheckBox(
-            top_ctl, text="Select All", variable=self.select_all_var, command=self.on_select_all
+            top_ctl,
+            text="Select All",
+            variable=self.select_all_var,
+            command=self.on_select_all,
         )
         self.chk_select_all.grid(row=0, column=3, padx=(0, 0))
 
@@ -383,11 +387,17 @@ class DFApp(ctk.CTk):
             header_frame.grid_columnconfigure(0, weight=1)
 
             ctk.CTkLabel(header_frame, text=f"{name} Rules", font=ctk.CTkFont(weight="bold")).grid(
-                row=0, column=0, sticky="w", padx=8
+                row=0,
+                column=0,
+                sticky="w",
+                padx=8,
             )
 
             add_btn = ctk.CTkButton(
-                header_frame, text="+ Add Rule", width=80, command=lambda n=name: self.add_rule_to_tab(n)
+                header_frame,
+                text="+ Add Rule",
+                width=80,
+                command=lambda n=name: self.add_rule_to_tab(n),
             )
             add_btn.grid(row=0, column=1, padx=8, pady=2, sticky="e")
 
@@ -425,7 +435,11 @@ class DFApp(ctk.CTk):
 
         ctk.CTkLabel(json_header, text="JSON (from comment)").grid(row=0, column=0, sticky="w")
         self.json_save_btn = ctk.CTkButton(
-            json_header, text="Save JSON", width=80, command=self.save_json_to_file, state="disabled"
+            json_header,
+            text="Save JSON",
+            width=80,
+            command=self.save_json_to_file,
+            state="disabled",
         )
         self.json_save_btn.grid(row=0, column=1, padx=(8, 0))
 
@@ -539,10 +553,10 @@ class DFApp(ctk.CTk):
     # -------------------------
     # NEW: Statistics calculation with improved categorization
     # -------------------------
-    def calculate_statistics(self):
-        """Calculate comprehensive statistics about the loaded songs"""
+    def calculate_statistics(self) -> None:
+        """Calculate comprehensive statistics about the loaded songs."""
         if not self.mp3_files:
-            self.stats = {key: 0 for key in self.stats.keys()}
+            self.stats = dict.fromkeys(self.stats, 0)
             self._update_status_display()
             print("No files loaded, stats reset to 0")
             return
@@ -562,7 +576,7 @@ class DFApp(ctk.CTk):
         # Process all files
         processed = 0
         for file_path in self.mp3_files:
-            jsond = self.get_file_data(file_path)
+            jsond = self.file_manager.get_file_data(file_path)
             if not jsond:
                 continue
 
@@ -614,21 +628,21 @@ class DFApp(ctk.CTk):
             "other_total": other_total,
         }
 
-        print(f"Statistics calculated:")
+        print("Statistics calculated:")
         for key, value in self.stats.items():
             print(f"  {key}: {value}")
 
         # Update the status display
         self._update_status_display()
 
-    def _update_status_display(self):
-        """Update the main status display"""
+    def _update_status_display(self) -> None:
+        """Update the main status display."""
         self.status_label.configure(
-            text=f"All songs: {self.stats.get('all_songs', 0)} | Unique (T,A): {self.stats.get('unique_ta', 0)}"
+            text=f"All songs: {self.stats.get('all_songs', 0)} | Unique (T,A): {self.stats.get('unique_ta', 0)}",
         )
 
-    def show_statistics_popup(self):
-        """Show statistics in a popup window"""
+    def show_statistics_popup(self) -> None:
+        """Show statistics in a popup window."""
         if hasattr(self, "_status_popup") and self._status_popup.winfo_exists():
             self._status_popup.focus_set()
             return
@@ -638,14 +652,12 @@ class DFApp(ctk.CTk):
     # -------------------------
     # NEW: Multi-level Sorting Methods
     # -------------------------
-    def add_sort_rule(self, is_first=False):
-        """Add a new sort rule row"""
+    def add_sort_rule(self, is_first: bool = False) -> None:
+        """Add a new sort rule row."""
         # Enforce maximum number of sort rules
         if len(self.sort_rules) >= self.max_sort_rules:
-            try:
+            with contextlib.suppress(Exception):
                 messagebox.showinfo("Sort limit", f"Maximum of {self.max_sort_rules} sort levels reached")
-            except Exception:
-                pass
             return
 
         row = SortRuleRow(
@@ -665,8 +677,8 @@ class DFApp(ctk.CTk):
             row.field_var.set("artist")  # Changed from "title" to "artist"
 
         # Bind change events to refresh tree
-        row.field_menu.configure(command=lambda val=None: self.refresh_tree())
-        row.order_menu.configure(command=lambda val=None: self.refresh_tree())
+        row.field_menu.configure(command=lambda _val=None: self.refresh_tree())
+        row.order_menu.configure(command=lambda _val=None: self.refresh_tree())
 
         # Update button visibility for all rules
         self.update_sort_rule_buttons()
@@ -675,8 +687,8 @@ class DFApp(ctk.CTk):
         if hasattr(self, "add_sort_btn"):
             self.add_sort_btn.configure(state="disabled" if len(self.sort_rules) >= self.max_sort_rules else "normal")
 
-    def move_sort_rule(self, widget, direction):
-        """Move a sort rule up or down"""
+    def move_sort_rule(self, widget: SortRuleRow, direction: int) -> None:
+        """Move a sort rule up or down."""
         # Find current index; don't allow the primary (index 0) to be moved
         try:
             idx = self.sort_rules.index(widget)
@@ -701,8 +713,8 @@ class DFApp(ctk.CTk):
         self.update_sort_rule_buttons()
         self.refresh_tree()
 
-    def delete_sort_rule(self, widget):
-        """Delete a sort rule (except the first one)"""
+    def delete_sort_rule(self, widget: SortRuleRow) -> None:
+        """Delete a sort rule (except the first one)."""
         try:
             idx = self.sort_rules.index(widget)
         except ValueError:
@@ -721,8 +733,8 @@ class DFApp(ctk.CTk):
         self.update_sort_rule_buttons()
         self.refresh_tree()
 
-    def repack_sort_rules(self):
-        """Repack all sort rules in current order"""
+    def repack_sort_rules(self) -> None:
+        """Repack all sort rules in current order."""
         # Clear the container
         for child in self.sort_container.winfo_children():
             child.pack_forget()
@@ -741,8 +753,8 @@ class DFApp(ctk.CTk):
             except Exception:
                 pass
 
-    def update_sort_rule_buttons(self):
-        """Update button visibility for sort rules"""
+    def update_sort_rule_buttons(self) -> None:
+        """Update button visibility for sort rules."""
         for i, rule in enumerate(self.sort_rules):
             if hasattr(rule, "up_btn"):
                 # First rule (index 0) is always first and can't be moved up
@@ -754,102 +766,13 @@ class DFApp(ctk.CTk):
 
         # Also update Add button state according to max allowed rules
         if hasattr(self, "add_sort_btn"):
-            try:
+            with contextlib.suppress(Exception):
                 self.add_sort_btn.configure(
-                    state="disabled" if len(self.sort_rules) >= self.max_sort_rules else "normal"
+                    state="disabled" if len(self.sort_rules) >= self.max_sort_rules else "normal",
                 )
-            except Exception:
-                pass
 
-    def get_sort_rules(self):
-        """Get list of sort rules as dictionaries"""
-        return [rule.get_sort_rule() for rule in self.sort_rules]
-
-    def apply_multi_sort(self, file_data):
-        """Apply multiple sort rules to file data"""
-        if not self.sort_rules:
-            return file_data
-
-        rules = self.get_sort_rules()
-
-        def sort_key(item):
-            """Create a sort key based on multiple rules"""
-            key_parts = []
-            for rule in rules:
-                field = rule["field"]
-                order = rule["order"]
-
-                # Get the value for this field (item[0] is index, rest are data)
-                field_index = [
-                    "title",
-                    "artist",
-                    "coverartist",
-                    "version",
-                    "disc",
-                    "track",
-                    "date",
-                    "comment",
-                    "special",
-                    "file",
-                ].index(field)
-                value = item[field_index + 1]  # +1 because item[0] is the original index
-
-                # Convert to appropriate type for sorting
-                if field in ["disc", "track", "special"]:
-                    try:
-                        value = int(value) if value else 0
-                    except (ValueError, TypeError):
-                        value = 0
-                elif field in ["version"]:
-                    try:
-                        # Try to extract numbers from version string
-                        nums = re.findall(r"\d+", str(value))
-                        value = int(nums[0]) if nums else 0
-                    except (ValueError, TypeError):
-                        value = 0
-                else:
-                    value = str(value).lower()
-
-                # Reverse order if descending
-                if order == "desc":
-                    if isinstance(value, (int, float)):
-                        value = -value
-                    else:
-                        # For strings, we'll handle in the sort function
-                        pass
-
-                key_parts.append(value)
-            return tuple(key_parts)
-
-        # Sort the data
-        try:
-            sorted_data = sorted(file_data, key=sort_key)
-
-            # For descending string sorts, we need to handle them separately
-            for i, rule in enumerate(rules):
-                if rule["order"] == "desc" and rule["field"] in [
-                    "title",
-                    "artist",
-                    "coverartist",
-                    "comment",
-                    "file",
-                    "date",
-                ]:
-                    # Reverse the order for this specific field level
-                    # This is a simplified approach - for true multi-level descending sorts,
-                    # we'd need a more complex algorithm
-                    if i == 0:  # Only apply to primary sort for simplicity
-                        sorted_data.reverse()
-                    break
-
-        except Exception as e:
-            print(f"Sorting error: {e}")
-            return file_data
-
-        return sorted_data
-
-    def on_tree_double_click(self, event):
-        """Play the selected song when double-clicked"""
+    def on_tree_double_click(self, _event: tk.Event) -> None:
+        """Play the selected song when double-clicked."""
         sel = self.tree.selection()
         if not sel:
             return
@@ -857,7 +780,7 @@ class DFApp(ctk.CTk):
         iid = sel[0]
         try:
             idx = int(iid)
-        except:
+        except Exception:
             return
 
         if idx < 0 or idx >= len(self.mp3_files):
@@ -867,10 +790,10 @@ class DFApp(ctk.CTk):
             if not mp3_utils.play_song(self.mp3_files[idx]):
                 self.show_audio_player_instructions()
         except Exception as e:
-            messagebox.showerror("Playback Error", f"Could not play file:\n{str(e)}")
+            messagebox.showerror("Playback Error", f"Could not play file:\n{e!s}")
 
-    def show_audio_player_instructions(self):
-        """Show instructions for installing audio players on Ubuntu"""
+    def show_audio_player_instructions(self) -> None:
+        """Show instructions for installing audio players on Ubuntu."""
         instructions = """To play audio files, you need a media player installed.
 
     Recommended players for Ubuntu:
@@ -882,11 +805,8 @@ class DFApp(ctk.CTk):
 
         messagebox.showinfo("Media Player Required", instructions)
 
-    # -------------------------
-    # NEW: JSON change detection
-    # -------------------------
-    def on_json_changed(self, event=None):
-        """Enable/disable JSON save button based on changes"""
+    def on_json_changed(self, _event: tk.Event | None = None) -> None:
+        """Enable/disable JSON save button based on changes."""
         if self.current_index is None or not self.current_json:
             self.json_save_btn.configure(state="disabled")
             return
@@ -919,22 +839,22 @@ class DFApp(ctk.CTk):
     # -------------------------
     # FIXED: Tree population with correct column order
     # -------------------------
-    def populate_tree_fast(self):
-        """OPTIMIZED: Populate tree with threaded data loading and multi-sort"""
+    def populate_tree_fast(self) -> None:
+        """Populate tree with threaded data loading and multi-sort."""
         self.lbl_file_info.configure(text=f"Loading {len(self.mp3_files)} files...")
         self.update_idletasks()
 
-        def load_file_data_batch():
-            """Load file data in batches for better performance"""
+        def load_file_data_batch() -> list[tuple[int, dict]]:
+            """Load file data in batches for better performance."""
             file_data = []
             total = len(self.mp3_files)
 
             # Pre-load all file data first
             for i, p in enumerate(self.mp3_files):
-                jsond, prefix = self.get_file_data_with_prefix(p)
+                jsond, _prefix = self.file_manager.get_file_data_with_prefix(p)
                 # Create a dictionary with all field values
                 field_values = {
-                    "title": jsond.get("Title") or os.path.splitext(os.path.basename(p))[0],
+                    "title": jsond.get("Title") or Path(p).stem,
                     "artist": jsond.get("Artist") or "",
                     "coverartist": jsond.get("CoverArtist") or "",
                     "version": jsond.get("Version") or "",
@@ -943,20 +863,23 @@ class DFApp(ctk.CTk):
                     "date": jsond.get("Date") or "",
                     "comment": jsond.get("Comment") or "",
                     "special": jsond.get("Special") or "",
-                    "file": os.path.basename(p),
+                    "file": Path(p).name,
                 }
 
                 # Store the original index and field values
                 file_data.append((i, field_values))
 
                 # Update progress every 10 files
-                if i % 10 == 0 and self.progress_dialog:
-                    if not self.progress_dialog.update_progress(i, total, f"Loading metadata... {i}/{total}"):
-                        return None
+                if (
+                    i % 10 == 0
+                    and self.progress_dialog
+                    and not self.progress_dialog.update_progress(i, total, f"Loading metadata... {i}/{total}")
+                ):
+                    return None
 
             return file_data
 
-        def on_data_loaded(file_data):
+        def on_data_loaded(file_data: list[tuple[int, dict]] | None) -> None:
             if file_data is None or (self.progress_dialog and self.progress_dialog.cancelled):
                 self.lbl_file_info.configure(text="Loading cancelled")
                 self.btn_select_folder.configure(state="normal")
@@ -967,7 +890,7 @@ class DFApp(ctk.CTk):
                 return
 
             # Apply multi-level sorting
-            sorted_data = self.apply_multi_sort_with_dict(file_data)
+            sorted_data = RuleManager.apply_multi_sort_with_dict(self.sort_rules, file_data)
 
             # Clear tree first
             for it in self.tree.get_children():
@@ -977,7 +900,7 @@ class DFApp(ctk.CTk):
             self.visible_file_indices = []
             batch_size = 50
 
-            def populate_batch(start_idx):
+            def populate_batch(start_idx: int) -> None:
                 end_idx = min(start_idx + batch_size, len(sorted_data))
                 for i in range(start_idx, end_idx):
                     orig_idx, field_values = sorted_data[i]
@@ -989,7 +912,9 @@ class DFApp(ctk.CTk):
                 # Update progress for tree population
                 if self.progress_dialog:
                     self.progress_dialog.update_progress(
-                        end_idx, len(sorted_data), f"Building list... {end_idx}/{len(sorted_data)}"
+                        end_idx,
+                        len(sorted_data),
+                        f"Building list... {end_idx}/{len(sorted_data)}",
                     )
 
                 if end_idx < len(sorted_data):
@@ -1021,128 +946,25 @@ class DFApp(ctk.CTk):
 
         # Start background loading
         threading.Thread(
-            target=lambda: self.after(0, lambda: on_data_loaded(load_file_data_batch())), daemon=True
+            target=lambda: self.after(0, lambda: on_data_loaded(load_file_data_batch())),
+            daemon=True,
         ).start()
-
-    def apply_multi_sort_with_dict(self, file_data):
-        """Apply multiple sort rules to file data stored as dictionaries"""
-        if not self.sort_rules:
-            return file_data
-
-        rules = self.get_sort_rules()
-
-        def sort_key(item):
-            """Create a sort key based on multiple rules"""
-            orig_idx, field_values = item
-            key_parts = []
-            for rule in rules:
-                field = rule["field"]
-                order = rule["order"]
-
-                # Get the value for this field from the dictionary
-                value = field_values.get(field, "")
-
-                # Convert to appropriate type for sorting
-                if field in ["disc", "track", "special"]:
-                    try:
-                        value = int(value) if value else 0
-                    except (ValueError, TypeError):
-                        value = 0
-                elif field in ["version"]:
-                    try:
-                        # Try to extract numbers from version string
-                        nums = re.findall(r"\d+", str(value))
-                        value = int(nums[0]) if nums else 0
-                    except (ValueError, TypeError):
-                        value = 0
-                else:
-                    value = str(value).lower()
-
-                # Reverse order if descending
-                if order == "desc":
-                    if isinstance(value, (int, float)):
-                        value = -value
-                    else:
-                        # For strings, we'll handle in the sort function
-                        pass
-
-                key_parts.append(value)
-            return tuple(key_parts)
-
-        # Sort the data
-        try:
-            sorted_data = sorted(file_data, key=sort_key)
-
-            # For descending string sorts, we need to handle them separately
-            for i, rule in enumerate(rules):
-                if rule["order"] == "desc" and rule["field"] in [
-                    "title",
-                    "artist",
-                    "coverartist",
-                    "comment",
-                    "file",
-                    "date",
-                ]:
-                    # Reverse the order for this specific field level
-                    # This is a simplified approach - for true multi-level descending sorts,
-                    # we'd need a more complex algorithm
-                    if i == 0:  # Only apply to primary sort for simplicity
-                        sorted_data.reverse()
-                    break
-
-        except Exception as e:
-            print(f"Sorting error: {e}")
-            return file_data
-
-        return sorted_data
-
-    # -------------------------
-    # NEW: File data methods with prefix support
-    # -------------------------
-    def get_file_data_with_prefix(self, file_path):
-        """Get both JSON data and prefix text - FIXED: Better encoding handling"""
-        if file_path not in self.file_data_cache:
-            jsond, prefix = mp3_utils.extract_json_from_mp3_cached(file_path) or ({}, "")
-
-            # FIXED: Clean up any encoding issues in the JSON data
-            if jsond:
-                cleaned_jsond = {}
-                for key, value in jsond.items():
-                    if isinstance(value, bytes):
-                        try:
-                            cleaned_jsond[key] = value.decode("utf-8")
-                        except UnicodeDecodeError:
-                            try:
-                                cleaned_jsond[key] = value.decode("latin-1")
-                            except:
-                                cleaned_jsond[key] = str(value)
-                    else:
-                        cleaned_jsond[key] = value
-                jsond = cleaned_jsond
-
-            self.file_data_cache[file_path] = (jsond, prefix)
-        return self.file_data_cache[file_path]
-
-    def get_file_data(self, file_path):
-        """Get cached file data with fallback (backward compatibility)"""
-        jsond, prefix = self.get_file_data_with_prefix(file_path)
-        return jsond
 
     # -------------------------
     # NEW: Auto-scan versions
     # -------------------------
-    def auto_scan_versions(self):
-        """Automatically scan versions after loading a folder"""
+    def auto_scan_versions(self) -> None:
+        """Automatically scan versions after loading a folder."""
         if not self.mp3_files:
             return
 
-        def scan_in_background():
+        def scan_in_background() -> tuple[dict[str, list[str]], dict[str, str]]:
             song_versions = {}
-            total = len(self.mp3_files)
+            _total = len(self.mp3_files)
             completed = 0
 
             with ThreadPoolExecutor(max_workers=4) as executor:
-                futures = {executor.submit(self.get_file_data, p): p for p in self.mp3_files}
+                futures = {executor.submit(self.file_manager.get_file_data, p): p for p in self.mp3_files}
                 for future in as_completed(futures):
                     p = futures[future]
                     try:
@@ -1184,27 +1006,32 @@ class DFApp(ctk.CTk):
 
             return song_versions, latest_versions
 
-        def on_scan_complete(result):
+        def on_scan_complete(result: tuple[dict[str, list[str]], dict[str, str]]) -> None:
             self.song_versions, self.latest_versions = result
             # Update preview to show versions
             self.update_preview()
 
         # Start background scanning silently (no UI feedback)
         threading.Thread(
-            target=lambda: self.after(0, lambda: on_scan_complete(scan_in_background())), daemon=True
+            target=lambda: self.after(0, lambda: on_scan_complete(scan_in_background())),
+            daemon=True,
         ).start()
 
     # -------------------------
     # UPDATED: Theme methods to prevent freezing
     # -------------------------
-    def _update_treeview_style(self):
-        """Update treeview style based on current theme"""
+    def _update_treeview_style(self) -> None:
+        """Update treeview style based on current theme."""
         try:
             if self.current_theme == "Dark" or (self.current_theme == "System" and ctk.get_appearance_mode() == "Dark"):
                 # Dark theme
                 self.style.theme_use("default")
                 self.style.configure(
-                    "Treeview", background="#2b2b2b", foreground="white", fieldbackground="#2b2b2b", borderwidth=0
+                    "Treeview",
+                    background="#2b2b2b",
+                    foreground="white",
+                    fieldbackground="#2b2b2b",
+                    borderwidth=0,
                 )
                 self.style.configure("Treeview.Heading", background="#3b3b3b", foreground="white", relief="flat")
                 self.style.map("Treeview", background=[("selected", "#1f6aa5")])
@@ -1213,7 +1040,11 @@ class DFApp(ctk.CTk):
                 # Light theme
                 self.style.theme_use("default")
                 self.style.configure(
-                    "Treeview", background="white", foreground="black", fieldbackground="white", borderwidth=0
+                    "Treeview",
+                    background="white",
+                    foreground="black",
+                    fieldbackground="white",
+                    borderwidth=0,
                 )
                 self.style.configure("Treeview.Heading", background="#f0f0f0", foreground="black", relief="flat")
                 self.style.map("Treeview", background=[("selected", "#0078d7")])
@@ -1221,8 +1052,8 @@ class DFApp(ctk.CTk):
         except Exception as e:
             print(f"Error updating treeview style: {e}")
 
-    def _update_json_text_style(self):
-        """Update JSON text widget style based on current theme"""
+    def _update_json_text_style(self) -> None:
+        """Update JSON text widget style based on current theme."""
         try:
             if self.current_theme == "Dark" or (self.current_theme == "System" and ctk.get_appearance_mode() == "Dark"):
                 # Dark theme
@@ -1233,8 +1064,8 @@ class DFApp(ctk.CTk):
         except Exception as e:
             print(f"Error updating JSON text style: {e}")
 
-    def _update_output_preview_style(self):
-        """Update output preview labels style based on current theme"""
+    def _update_output_preview_style(self) -> None:
+        """Update output preview labels style based on current theme."""
         try:
             if self.current_theme == "Dark" or (self.current_theme == "System" and ctk.get_appearance_mode() == "Dark"):
                 # Dark theme
@@ -1259,8 +1090,8 @@ class DFApp(ctk.CTk):
         except Exception as e:
             print(f"Error updating output preview style: {e}")
 
-    def _update_theme_button(self):
-        """Update theme button icon based on current theme - Make it look like other buttons"""
+    def _update_theme_button(self) -> None:
+        """Update theme button icon based on current theme - Make it look like other buttons."""
         try:
             if self.current_theme == "Dark" or (self.current_theme == "System" and ctk.get_appearance_mode() == "Dark"):
                 # Currently dark, show light theme button
@@ -1284,28 +1115,26 @@ class DFApp(ctk.CTk):
     # -------------------------
     # OPTIMIZED: Cover image handling with dedicated thread
     # -------------------------
-    def _safe_cover_display_update(self, text, clear_image=False):
-        """Safely update cover display without causing Tcl errors"""
+    def _safe_cover_display_update(self, text: str, clear_image: bool = False) -> None:
+        """Safely update cover display without causing Tcl errors."""
         try:
             if clear_image:
                 # Clear image reference first using a safer approach
                 self.cover_display.configure(image="")
                 self.current_cover_image = None
             self.cover_display.configure(text=text)
-        except Exception as e:
+        except Exception:
             # If we get an error, try a more aggressive approach
             try:
                 self.cover_display.configure(image="", text=text)
                 self.current_cover_image = None
             except Exception:
                 # Final fallback - just set text
-                try:
+                with contextlib.suppress(Exception):
                     self.cover_display.configure(text=text)
-                except Exception:
-                    pass
 
-    def load_current_cover(self):
-        """Load cover image for current song - FIXED: More aggressive throttling"""
+    def load_current_cover(self) -> None:
+        """Load cover image for current song - FIXED: More aggressive throttling."""
         if self.current_index is None or not self.mp3_files:
             return
 
@@ -1332,15 +1161,15 @@ class DFApp(ctk.CTk):
         # Add to loading queue for background processing
         self.cover_loading_queue.append((path, self._on_cover_loaded))
 
-    def _on_cover_loaded(self, img):
-        """Callback when cover is loaded in background"""
+    def _on_cover_loaded(self, img: Image.Image | None) -> None:
+        """When cover is loaded in background."""
         if img:
             self.display_cover_image(img)
         else:
             self._safe_cover_display_update("No cover", clear_image=True)
 
-    def display_cover_image(self, img):
-        """Display cover image centered in the square container"""
+    def display_cover_image(self, img: Image.Image | None) -> None:
+        """Display cover image centered in the square container."""
         if not img:
             self._safe_cover_display_update("No cover", clear_image=True)
             return
@@ -1362,8 +1191,8 @@ class DFApp(ctk.CTk):
             print(f"Error displaying cover: {e}")
             self._safe_cover_display_update("Error loading cover", clear_image=True)
 
-    def toggle_theme(self):
-        """Toggle between dark and light themes"""
+    def toggle_theme(self) -> None:
+        """Toggle between dark and light themes."""
         try:
             if self.current_theme == "System":
                 # If system, switch to explicit dark
@@ -1398,13 +1227,13 @@ class DFApp(ctk.CTk):
     # -------------------------
     # UPDATED: Search with version=latest support
     # -------------------------
-    def on_search_keyrelease(self, event=None):
-        """Debounced search handler"""
+    def on_search_keyrelease(self, _event: tk.Event | None = None) -> None:
+        """Debounced search handler."""
         if hasattr(self, "_search_after_id"):
             self.after_cancel(self._search_after_id)
         self._search_after_id = self.after(300, self.refresh_tree)  # 300ms delay
 
-    def _parse_search_query(self, q):
+    def _parse_search_query(self, q: str) -> tuple[list[dict[str, str]], list[str]]:
         """Parse search query into structured filters and free-text terms.
 
         Supports expressions like: Artist=randomName Disc=3.2 version=latest
@@ -1424,7 +1253,7 @@ class DFApp(ctk.CTk):
         q_orig = q
         filters = []
         # allowed fields (case-insensitive) - UPDATED: Added special field
-        allowed = {
+        _allowed = {
             f: f
             for f in [
                 "title",
@@ -1442,7 +1271,7 @@ class DFApp(ctk.CTk):
 
         # regex to find key<op>value tokens; value may be quoted
         token_re = re.compile(
-            r"(?i)\b(title|artist|coverartist|version|disc|track|date|comment|special|file)\s*(==|!=|>=|<=|>|<|=|~|!~)\s*(?:\"([^\"]+)\"|'([^']+)'|(\S+))"
+            r"(?i)\b(title|artist|coverartist|version|disc|track|date|comment|special|file)\s*(==|!=|>=|<=|>|<|=|~|!~)\s*(?:\"([^\"]+)\"|'([^']+)'|(\S+))",
         )
 
         # find all matches
@@ -1466,7 +1295,7 @@ class DFApp(ctk.CTk):
 
         return filters, free_terms
 
-    def _match_filters(self, filters, free_terms, row_vals):
+    def _match_filters(self, filters: list[dict[str, str]], free_terms: list[str], row_vals: dict[str, str]) -> bool:
         """Evaluate whether a row (tuple with fields) matches filters and free terms.
 
         row_vals: dict mapping lowercase field names to values (strings)
@@ -1493,8 +1322,7 @@ class DFApp(ctk.CTk):
                 # Check if this version is the latest for this specific song key
                 if song_key in self.latest_versions and version == self.latest_versions[song_key]:
                     continue  # It is the latest version, continue to next filter
-                else:
-                    return False  # Not the latest version, filter fails
+                return False  # Not the latest version, filter fails
 
             # Try numeric comparison when possible
             if op in (">", "<", ">=", "<="):
@@ -1518,8 +1346,7 @@ class DFApp(ctk.CTk):
                 except Exception:
                     return False
             elif op in ("=", "~"):
-                # contains (case-insensitive)
-                if val not in field_val_l:
+                if val not in field_val_l:  # contains (case-insensitive)
                     return False
             elif op == "==":
                 if field_val_l != val:
@@ -1540,8 +1367,8 @@ class DFApp(ctk.CTk):
 
         return True
 
-    def on_tree_click(self, event):
-        """Handle column header clicks for reordering"""
+    def on_tree_click(self, event: tk.Event) -> None:
+        """Handle column header clicks for reordering."""
         region = self.tree.identify_region(event.x, event.y)
         if region == "heading":
             column = self.tree.identify_column(event.x)
@@ -1551,8 +1378,8 @@ class DFApp(ctk.CTk):
                 self.tree.bind("<B1-Motion>", self.on_column_drag)
                 self.tree.bind("<ButtonRelease-1>", self.on_column_drop)
 
-    def on_column_drag(self, event):
-        """Visual feedback during column drag"""
+    def on_column_drag(self, event: tk.Event) -> None:
+        """Visual feedback during column drag."""
         region = self.tree.identify_region(event.x, event.y)
         if region == "heading":
             column = self.tree.identify_column(event.x)
@@ -1567,10 +1394,8 @@ class DFApp(ctk.CTk):
                 if target != self._highlighted_column:
                     # clear previous
                     if self._highlighted_column:
-                        try:
+                        with contextlib.suppress(Exception):
                             self.tree.heading(self._highlighted_column, background="")
-                        except Exception:
-                            pass
                     # set new highlight (color depends on theme)
                     try:
                         hl = "#4b94d6" if (self.current_theme == "Light") else "#3b6ea0"
@@ -1579,16 +1404,14 @@ class DFApp(ctk.CTk):
                     except Exception:
                         self._highlighted_column = None
 
-    def on_column_drop(self, event):
-        """Handle column reordering when dropped"""
+    def on_column_drop(self, event: tk.Event) -> None:
+        """Handle column reordering when dropped."""
         self.tree.unbind("<B1-Motion>")
         self.tree.unbind("<ButtonRelease-1>")
         # clear any header highlight
         if self._highlighted_column:
-            try:
+            with contextlib.suppress(Exception):
                 self.tree.heading(self._highlighted_column, background="")
-            except Exception:
-                pass
             self._highlighted_column = None
 
         if self.dragged_column:
@@ -1610,8 +1433,8 @@ class DFApp(ctk.CTk):
 
             self.dragged_column = None
 
-    def rebuild_tree_columns(self):
-        """Rebuild tree columns with new order"""
+    def rebuild_tree_columns(self) -> None:
+        """Rebuild tree columns with new order."""
         # Save current selection and scroll position
         selection = self.tree.selection()
         scroll_v = self.tree.yview()
@@ -1633,10 +1456,8 @@ class DFApp(ctk.CTk):
                 prev_col_stretch[col] = False
 
         for col in prev_columns:
-            try:
+            with contextlib.suppress(Exception):
                 self.tree.heading(col, text="")
-            except Exception:
-                pass
 
         column_configs = {
             "title": ("Title", 180, "w"),
@@ -1689,10 +1510,8 @@ class DFApp(ctk.CTk):
 
         # Restore selection and scroll position
         if selection:
-            try:
+            with contextlib.suppress(Exception):
                 self.tree.selection_set(selection)
-            except Exception:
-                pass
         try:
             self.tree.yview_moveto(scroll_v[0])
             self.tree.xview_moveto(scroll_h[0])
@@ -1703,7 +1522,8 @@ class DFApp(ctk.CTk):
     # Settings persistence
     # -------------------------
     @property
-    def settings_path(self):
+    def settings_path(self) -> Path:
+        """Settings file path."""
         try:
             if getattr(sys, "frozen", False):
                 # Running as bundled executable
@@ -1716,7 +1536,7 @@ class DFApp(ctk.CTk):
             # Fallback to current working directory
             return Path("df_metadata_customizer_settings.json")
 
-    def save_settings(self):
+    def save_settings(self) -> None:
         """Save UI settings to a JSON file."""
         try:
             data = {}
@@ -1745,7 +1565,7 @@ class DFApp(ctk.CTk):
 
             # sort rules
             try:
-                data["sort_rules"] = self.get_sort_rules()
+                data["sort_rules"] = RuleManager.get_sort_rules(self.sort_rules)
             except Exception:
                 data["sort_rules"] = []
 
@@ -1755,18 +1575,18 @@ class DFApp(ctk.CTk):
 
             # write file
             p = self.settings_path
-            with open(p, "w", encoding="utf-8") as f:
+            with p.open("w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2, ensure_ascii=False)
         except Exception as e:
             print(f"Error saving settings: {e}")
 
-    def load_settings(self):
+    def load_settings(self) -> None:
         """Load UI settings from JSON file and apply them where possible."""
         p = self.settings_path
         if not p.exists():
             return
         try:
-            with open(p, "r", encoding="utf-8") as f:
+            with p.open("r", encoding="utf-8") as f:
                 data = json.load(f)
         except Exception:
             return
@@ -1795,17 +1615,13 @@ class DFApp(ctk.CTk):
                 # apply order
                 self.column_order = col_order
                 # rebuild columns to new order
-                try:
+                with contextlib.suppress(Exception):
                     self.rebuild_tree_columns()
-                except Exception:
-                    pass
                 # apply widths
                 try:
                     for c, w in (col_widths or {}).items():
-                        try:
+                        with contextlib.suppress(Exception):
                             self.tree.column(c, width=int(w))
-                        except Exception:
-                            pass
                 except Exception:
                     pass
         except Exception:
@@ -1841,7 +1657,7 @@ class DFApp(ctk.CTk):
             sash_ratio = data.get("sash_ratio")
             if sash_ratio is not None:
 
-                def apply_ratio(attempts=0):
+                def apply_ratio(attempts: int = 0) -> None:
                     try:
                         total = self.paned.winfo_width()
                         if total and attempts < 10:
@@ -1849,14 +1665,11 @@ class DFApp(ctk.CTk):
                             try:
                                 self.paned.sash_place(0, pos, 0)
                             except Exception:
-                                try:
+                                with contextlib.suppress(Exception):
                                     self.paned.sashpos(0)
-                                except Exception:
-                                    pass
-                        else:
-                            # try again shortly if not yet sized
-                            if attempts < 10:
-                                self.after(150, lambda: apply_ratio(attempts + 1))
+                        # try again shortly if not yet sized
+                        elif attempts < 10:
+                            self.after(150, lambda: apply_ratio(attempts + 1))
                     except Exception:
                         pass
 
@@ -1873,7 +1686,7 @@ class DFApp(ctk.CTk):
         except Exception:
             pass
 
-    def _on_close(self):
+    def _on_close(self) -> None:
         try:
             self.cover_loading_active = False  # Stop the cover loading thread
             self.save_settings()
@@ -1882,29 +1695,14 @@ class DFApp(ctk.CTk):
         try:
             self.destroy()
         except Exception:
-            try:
+            with contextlib.suppress(Exception):
                 self.quit()
-            except Exception:
-                pass
-
-    # -------------------------
-    # Rule tab creation - FIXED LAYOUT
-    # -------------------------
-    def _create_rule_tab(self, name):
-        # This method is now handled in _build_ui with the improved layout
-        pass
-
-    def add_rule_to_tab(self, tab_name):
-        """Add a rule to the specified tab"""
-        container = self.rule_containers.get(tab_name.lower())
-        if container:
-            self.add_rule(container)
 
     # -------------------------
     # JSON Editing Functions - UPDATED with prefix support
     # -------------------------
-    def save_json_to_file(self):
-        """Save the edited JSON back to the current MP3 file"""
+    def save_json_to_file(self) -> None:
+        """Save the edited JSON back to the current MP3 file."""
         if self.current_index is None or not self.mp3_files:
             messagebox.showwarning("No file selected", "Please select a file first")
             return
@@ -1939,32 +1737,32 @@ class DFApp(ctk.CTk):
                 full_comment = json.dumps(json_data, ensure_ascii=False, separators=(",", ":"))
 
         except json.JSONDecodeError as e:
-            messagebox.showerror("Invalid JSON", f"The JSON is invalid:\n{str(e)}")
+            messagebox.showerror("Invalid JSON", f"The JSON is invalid:\n{e!s}")
             return
 
         # Confirm save
         path = self.mp3_files[self.current_index]
-        filename = os.path.basename(path)
+        filename = Path(path).name
         result = messagebox.askyesno("Confirm Save", f"Save JSON changes to:\n{filename}?")
 
         if not result:
             return
 
         # Show saving indicator
-        original_text = self.lbl_file_info.cget("text")
+        _original_text = self.lbl_file_info.cget("text")
         self.lbl_file_info.configure(text=f"Saving JSON to {filename}...")
         self.update_idletasks()
 
-        def save_json():
+        def save_json() -> tuple[bool, str]:
             # Write the full comment text directly
             success = mp3_utils.write_json_to_mp3(path, full_comment)
             return success, filename
 
-        def on_save_complete(result):
+        def on_save_complete(result: tuple[bool, str]) -> None:
             success, filename = result
             if success:
                 # Update cache with new data
-                self.file_data_cache[path] = (json_data, prefix_text)
+                self.file_manager.update_file_data(path, json_data, prefix_text)
                 self.current_json = json_data
                 self.current_json_prefix = prefix_text
 
@@ -1985,15 +1783,15 @@ class DFApp(ctk.CTk):
 
         threading.Thread(target=lambda: self.after(0, lambda: on_save_complete(save_json())), daemon=True).start()
 
-    def update_tree_row(self, index, json_data):
-        """Update a specific row in the treeview with new JSON data"""
+    def update_tree_row(self, index: int, json_data: dict[str, str]) -> None:
+        """Update a specific row in the treeview with new JSON data."""
         if index < 0 or index >= len(self.mp3_files):
             return
 
         path = self.mp3_files[index]
         # Create field values dictionary
         field_values = {
-            "title": json_data.get("Title") or os.path.splitext(os.path.basename(path))[0],
+            "title": json_data.get("Title") or Path(path).stem,
             "artist": json_data.get("Artist") or "",
             "coverartist": json_data.get("CoverArtist") or "",
             "version": json_data.get("Version") or "",
@@ -2002,7 +1800,7 @@ class DFApp(ctk.CTk):
             "date": json_data.get("Date") or "",
             "comment": json_data.get("Comment") or "",
             "special": json_data.get("Special") or "",
-            "file": os.path.basename(path),
+            "file": Path(path).name,
         }
 
         # Create values tuple in the current column order
@@ -2014,14 +1812,14 @@ class DFApp(ctk.CTk):
     # -------------------------
     # Filename Editing Functions
     # -------------------------
-    def on_filename_changed(self, event=None):
-        """Enable/disable rename button based on filename changes"""
+    def on_filename_changed(self, _event: tk.Event | None = None) -> None:
+        """Enable/disable rename button based on filename changes."""
         if self.current_index is None:
             self.filename_save_btn.configure(state="disabled")
             return
 
         current_path = self.mp3_files[self.current_index]
-        current_filename = os.path.basename(current_path)
+        current_filename = Path(current_path).name
         new_filename = self.filename_var.get().strip()
 
         # Enable button only if filename has changed and is not empty
@@ -2030,13 +1828,13 @@ class DFApp(ctk.CTk):
         else:
             self.filename_save_btn.configure(state="disabled")
 
-    def rename_current_file(self):
-        """Rename the current file to the new filename"""
+    def rename_current_file(self) -> None:
+        """Rename the current file to the new filename."""
         if self.current_index is None:
             return
 
         current_path = self.mp3_files[self.current_index]
-        current_filename = os.path.basename(current_path)
+        current_filename = Path(current_path).name
         new_filename = self.filename_var.get().strip()
 
         if not new_filename:
@@ -2052,11 +1850,11 @@ class DFApp(ctk.CTk):
             new_filename += ".mp3"
 
         # Get directory and construct new path
-        directory = os.path.dirname(current_path)
-        new_path = os.path.join(directory, new_filename)
+        directory = Path(current_path).parent
+        new_path = str(directory / new_filename)
 
         # Check if target file already exists
-        if os.path.exists(new_path):
+        if Path(new_path).exists():
             result = messagebox.askyesno("File exists", f"A file named '{new_filename}' already exists.\nOverwrite it?")
             if not result:
                 return
@@ -2067,28 +1865,27 @@ class DFApp(ctk.CTk):
             return
 
         # Show renaming indicator
-        original_text = self.lbl_file_info.cget("text")
+        _original_text = self.lbl_file_info.cget("text")
         self.lbl_file_info.configure(text=f"Renaming {current_filename}...")
         self.update_idletasks()
 
         # Rename in background thread
-        def rename_file():
+        def rename_file() -> tuple[bool, str, str]:
             try:
                 # Use shutil.move to handle cross-device moves if needed
                 shutil.move(current_path, new_path)
-                return True, current_filename, new_filename
             except Exception as e:
                 return False, current_filename, str(e)
+            return True, current_filename, new_filename
 
-        def on_rename_complete(result):
+        def on_rename_complete(result: tuple[bool, str, str]) -> None:
             success, old_name, new_name_or_error = result
             if success:
                 # Update the file path in our list
                 self.mp3_files[self.current_index] = new_path
 
                 # Update cache entries
-                if current_path in self.file_data_cache:
-                    self.file_data_cache[new_path] = self.file_data_cache.pop(current_path)
+                self.file_manager.update_file_path(current_path, new_path)
                 if current_path in self.cover_cache:
                     self.cover_cache[new_path] = self.cover_cache.pop(current_path)
 
@@ -2108,8 +1905,8 @@ class DFApp(ctk.CTk):
 
         threading.Thread(target=lambda: self.after(0, lambda: on_rename_complete(rename_file())), daemon=True).start()
 
-    def delete_rule(self, widget):
-        """Delete a rule from its container - UPDATED: With button state update"""
+    def delete_rule(self, widget: RuleRow) -> None:
+        """Delete a rule from its container - UPDATED: With button state update."""
         container = widget.master
         children = [w for w in container.winfo_children() if isinstance(w, RuleRow)]
 
@@ -2123,8 +1920,8 @@ class DFApp(ctk.CTk):
         self.update_rule_tab_buttons()
         self.update_preview()
 
-    def add_rule_to_tab(self, tab_name):
-        """Add a rule to the specified tab - UPDATED: With rule limit check"""
+    def add_rule_to_tab(self, tab_name: str) -> None:
+        """Add a rule to the specified tab - UPDATED: With rule limit check."""
         container = self.rule_containers.get(tab_name.lower())
         if container:
             # Count current rules in this tab
@@ -2140,8 +1937,8 @@ class DFApp(ctk.CTk):
             # Update button states after adding
             self.update_rule_tab_buttons()
 
-    def update_rule_tab_buttons(self):
-        """Update the Add Rule buttons for each tab based on rule counts"""
+    def update_rule_tab_buttons(self) -> None:
+        """Update the Add Rule buttons for each tab based on rule counts."""
         for tab_name, container in self.rule_containers.items():
             # Count current rules in this tab
             current_rules = len([w for w in container.winfo_children() if isinstance(w, RuleRow)])
@@ -2164,18 +1961,15 @@ class DFApp(ctk.CTk):
                         else:
                             add_button.configure(state="normal")
 
-    def collect_rules_for(self, tab):
+    def collect_rules_for(self, tab: str) -> list[dict[str, str]]:
         """Return list of rule dicts for tab name (title/artist/album)."""
         container = self.rule_containers.get(tab)
         if not container:
             return []
-        rules = []
-        for w in container.winfo_children():
-            if isinstance(w, RuleRow):
-                rules.append(w.get_rule())
-        return rules
+        return [w.get_rule() for w in container.winfo_children() if isinstance(w, RuleRow)]
 
-    def add_rule(self, container):
+    def add_rule(self, container: ctk.CTkFrame) -> None:
+        """Add a rule row to the specified container."""
         # Count current rules to determine if this is the first one
         current_rules = len([w for w in container.winfo_children() if isinstance(w, RuleRow)])
         is_first = current_rules == 0
@@ -2193,14 +1987,14 @@ class DFApp(ctk.CTk):
             row.template_entry.insert(0, "Archive VOL {Discnumber}")
 
         # FIXED: Use force preview update for immediate response
-        def update_callback(*args):
+        def update_callback(*args) -> None:
             self.force_preview_update()
 
         row.field_var.trace("w", update_callback)
         row.op_var.trace("w", update_callback)
         row.logic_var.trace("w", update_callback)  # Add logic change listener
-        row.value_entry.bind("<KeyRelease>", lambda e: self.force_preview_update())
-        row.template_entry.bind("<KeyRelease>", lambda e: self.force_preview_update())
+        row.value_entry.bind("<KeyRelease>", lambda _e: self.force_preview_update())
+        row.template_entry.bind("<KeyRelease>", lambda _e: self.force_preview_update())
 
         # Update button states after adding
         self.update_rule_tab_buttons()
@@ -2208,9 +2002,10 @@ class DFApp(ctk.CTk):
         self.force_preview_update()
 
     # -------------------------
-    # File / tree operations - FIXED PROGRESS DIALOG
+    # File / tree operations
     # -------------------------
-    def select_folder(self):
+    def select_folder(self) -> None:
+        """Handle folder selection and MP3 scanning with progress dialog."""
         if self.operation_in_progress:
             return
 
@@ -2222,7 +2017,7 @@ class DFApp(ctk.CTk):
         self.btn_select_folder.configure(state="disabled")
 
         # Clear cache when loading new folder
-        self.file_data_cache.clear()
+        self.file_manager.clear()
         self.cover_cache.clear()
         mp3_utils.extract_json_from_mp3_cached.cache_clear()
 
@@ -2235,7 +2030,7 @@ class DFApp(ctk.CTk):
         self.progress_dialog.update_progress(0, 100, "Finding MP3 files...")
 
         # Scan in background thread
-        def scan_folder():
+        def scan_folder() -> list[str] | None:
             try:
                 files = []
                 count = 0
@@ -2246,15 +2041,18 @@ class DFApp(ctk.CTk):
                         files.append(str(p))
                         count += 1
                         # Update progress every 10 files
-                        if count % 10 == 0 and self.progress_dialog:
-                            if not self.progress_dialog.update_progress(count, count, f"Found {count} files..."):
-                                return None
-                return files
+                        if (
+                            count % 10 == 0
+                            and self.progress_dialog
+                            and not self.progress_dialog.update_progress(count, count, f"Found {count} files...")
+                        ):
+                            return None
             except Exception as e:
                 print(f"Error scanning folder: {e}")
                 return []
+            return files
 
-        def on_scan_complete(files):
+        def on_scan_complete(files: list[str] | None) -> None:
             if files is None:  # Cancelled
                 self.lbl_file_info.configure(text="Scan cancelled")
                 self.btn_select_folder.configure(state="normal")
@@ -2286,17 +2084,17 @@ class DFApp(ctk.CTk):
         # Start background scan
         threading.Thread(target=lambda: self.after(0, lambda: on_scan_complete(scan_folder())), daemon=True).start()
 
-    def refresh_tree(self):
+    def refresh_tree(self) -> None:
         """Refresh tree with search filtering and multi-sort. Supports structured filters including version=latest."""
         q_raw = self.search_var.get().strip()
 
         # Build file_data list first
         file_data = []
         for i, p in enumerate(self.mp3_files):
-            jsond = self.get_file_data(p)
+            jsond = self.file_manager.get_file_data(p)
             # Create field values dictionary
             field_values = {
-                "title": jsond.get("Title") or os.path.splitext(os.path.basename(p))[0],
+                "title": jsond.get("Title") or Path(p).stem,
                 "artist": jsond.get("Artist") or "",
                 "coverartist": jsond.get("CoverArtist") or "",
                 "version": jsond.get("Version") or "",
@@ -2305,13 +2103,13 @@ class DFApp(ctk.CTk):
                 "date": jsond.get("Date") or "",
                 "comment": jsond.get("Comment") or "",
                 "special": jsond.get("Special") or "",
-                "file": os.path.basename(p),
+                "file": Path(p).name,
             }
             file_data.append((i, field_values))
 
         # If no query, just sort & show all
         if not q_raw:
-            sorted_data = self.apply_multi_sort_with_dict(file_data)
+            sorted_data = RuleManager.apply_multi_sort_with_dict(self.sort_rules, file_data)
             for it in self.tree.get_children():
                 self.tree.delete(it)
             self.visible_file_indices = []
@@ -2345,7 +2143,7 @@ class DFApp(ctk.CTk):
 
         # Apply multi-level sort to the filtered matches so search+sort combine
         try:
-            sorted_matches = self.apply_multi_sort_with_dict(matches)
+            sorted_matches = RuleManager.apply_multi_sort_with_dict(self.sort_rules, matches)
         except Exception:
             sorted_matches = matches
 
@@ -2362,18 +2160,15 @@ class DFApp(ctk.CTk):
         # Update search info label with count and filter summary
         info = f"{len(self.visible_file_indices)} songs found"
         if filters or free_terms:
-            parts = []
-            for f in filters:
-                parts.append(f"{f['field']} {f['op']} {f['value']}")
-            for t in free_terms:
-                parts.append(f"'{t}'")
+            parts = [f"{f['field']} {f['op']} {f['value']}" for f in filters] + [f"'{t}'" for t in free_terms]
             info += " | " + ", ".join(parts)
         self.search_info_label.configure(text=info)
 
         # Update statistics for filtered results
         self.calculate_statistics()
 
-    def on_tree_select(self, event=None):
+    def on_tree_select(self, _event: tk.Event | None = None) -> None:
+        """Handle tree selection change."""
         sel = self.tree.selection()
         # Update selection count
         self.lbl_selection_info.configure(text=f"{len(sel)} song(s) selected")
@@ -2383,24 +2178,24 @@ class DFApp(ctk.CTk):
         iid = sel[0]
         try:
             idx = int(iid)
-        except:
+        except Exception:
             return
         if idx < 0 or idx >= len(self.mp3_files):
             return
         self.current_index = idx
         self.load_current()
 
-    def load_current(self):
-        """Load current song data - FIXED: Better non-ASCII handling in JSON display"""
+    def load_current(self) -> None:
+        """Load current song data."""
         if self.current_index is None or not self.mp3_files:
             return
         path = self.mp3_files[self.current_index]
         self.lbl_file_info.configure(
-            text=f"{self.current_index + 1}/{len(self.mp3_files)}  —  {os.path.basename(path)}"
+            text=f"{self.current_index + 1}/{len(self.mp3_files)}  —  {Path(path).name}",
         )
 
         # Load JSON from cache (with prefix)
-        json_data, prefix_text = self.get_file_data_with_prefix(path)
+        json_data, prefix_text = self.file_manager.get_file_data_with_prefix(path)
         self.current_json = json_data
         self.current_json_prefix = prefix_text
 
@@ -2433,7 +2228,7 @@ class DFApp(ctk.CTk):
         self.json_save_btn.configure(state="disabled")
 
         # Load current filename
-        current_filename = os.path.basename(path)
+        current_filename = Path(path).name
         self.filename_var.set(current_filename)
         self.filename_save_btn.configure(state="disabled")
 
@@ -2443,8 +2238,8 @@ class DFApp(ctk.CTk):
         # Load cover AFTER preview is updated
         self.load_current_cover()
 
-    def prev_file(self):
-        """Navigate to previous file in the visible list"""
+    def prev_file(self) -> None:
+        """Navigate to previous file in the visible list."""
         if not self.visible_file_indices:
             return
 
@@ -2464,8 +2259,8 @@ class DFApp(ctk.CTk):
         self.current_index = prev_index
         self.load_current()
 
-    def next_file(self):
-        """Navigate to next file in the visible list"""
+    def next_file(self) -> None:
+        """Navigate to next file in the visible list."""
         if not self.visible_file_indices:
             return
 
@@ -2485,7 +2280,8 @@ class DFApp(ctk.CTk):
         self.current_index = next_index
         self.load_current()
 
-    def on_select_all(self):
+    def on_select_all(self) -> None:
+        """Handle select all checkbox toggle."""
         sel = self.select_all_var.get()
         if sel:
             # select all visible
@@ -2498,7 +2294,8 @@ class DFApp(ctk.CTk):
     # -------------------------
     # Rule evaluation & preview
     # -------------------------
-    def update_preview(self):
+    def update_preview(self) -> None:
+        """Update the output preview based on current rules and selected JSON."""
         if not self.current_json:
             self.lbl_out_title.configure(text="")
             self.lbl_out_artist.configure(text="")
@@ -2509,13 +2306,13 @@ class DFApp(ctk.CTk):
             return
 
         # FIXED: Better handling of non-ASCII characters
-        def safe_get(field):
+        def safe_get(field: str) -> str:
             value = self.current_json.get(field, "")
             # Ensure we return a proper string, handling any encoding issues
             if isinstance(value, bytes):
                 try:
                     return value.decode("utf-8")
-                except:
+                except Exception:
                     return str(value)
             return str(value) if value is not None else ""
 
@@ -2535,9 +2332,9 @@ class DFApp(ctk.CTk):
         # print(f"Field values - Title: {repr(fv['Title'])}, Artist: {repr(fv['Artist'])}, CoverArtist: {repr(fv['CoverArtist'])}")
 
         # FIXED: Use the correct method to collect rules for each tab
-        new_title = self._apply_rules_list(self.collect_rules_for_tab("title"), fv)
-        new_artist = self._apply_rules_list(self.collect_rules_for_tab("artist"), fv)
-        new_album = self._apply_rules_list(self.collect_rules_for_tab("album"), fv)
+        new_title = RuleManager.apply_rules_list(self.collect_rules_for_tab("title"), fv, self.latest_versions)
+        new_artist = RuleManager.apply_rules_list(self.collect_rules_for_tab("artist"), fv, self.latest_versions)
+        new_album = RuleManager.apply_rules_list(self.collect_rules_for_tab("album"), fv, self.latest_versions)
 
         # REMOVED: Problematic debug print
         # print(f"Preview - Title: '{new_title}', Artist: '{new_artist}', Album: '{new_album}'")
@@ -2572,8 +2369,8 @@ class DFApp(ctk.CTk):
         else:
             self.lbl_out_versions.configure(text="")
 
-    def safe_update_preview(self):
-        """Safe wrapper for update_preview with exception handling"""
+    def safe_update_preview(self) -> None:
+        """Safe wrapper for update_preview with exception handling."""
         try:
             self.update_preview()
         except Exception as e:
@@ -2586,8 +2383,8 @@ class DFApp(ctk.CTk):
             self.lbl_out_track.configure(text="")
             self.lbl_out_versions.configure(text="")
 
-    def collect_rules_for_tab(self, key):
-        """key in 'title','artist','album' - Enhanced for AND/OR grouping"""
+    def collect_rules_for_tab(self, key: str) -> list[dict[str, str]]:
+        """Key in 'title','artist','album' - Enhanced for AND/OR grouping."""
         container = self.rule_containers.get(key)
         if not container:
             return []
@@ -2603,196 +2400,36 @@ class DFApp(ctk.CTk):
 
         return rules
 
-    def _apply_rules_list(self, rules, fv):
-        """Apply rules list to field values with AND/OR grouping"""
-        if not rules:
-            # Return appropriate default based on context
-            if rules is self.collect_rules_for_tab("title"):
-                return fv.get("Title", "")
-            elif rules is self.collect_rules_for_tab("artist"):
-                return fv.get("Artist", "")
-            elif rules is self.collect_rules_for_tab("album"):
-                return fv.get("Album", "")
-            return ""
-
-        # Group rules by logical blocks
-        rule_blocks = self._group_rules_by_logic(rules)
-
-        # Evaluate each rule block
-        for block in rule_blocks:
-            if self._eval_rule_block(block, fv):
-                # Get the template from the last rule in the block (where the THEN is defined)
-                template = block[-1].get("then_template", "")
-                result = self._apply_template(template, fv)
-                if result.strip():
-                    return result
-                else:
-                    # Fallback to original field if template is empty
-                    if "title" in str(rules):
-                        return fv.get("Title", "")
-                    elif "artist" in str(rules):
-                        return fv.get("Artist", "")
-                    elif "album" in str(rules):
-                        return fv.get("Album", "")
-
-        # No rules matched, return original field
-        if rules is self.collect_rules_for_tab("title"):
-            return fv.get("Title", "")
-        elif rules is self.collect_rules_for_tab("artist"):
-            return fv.get("Artist", "")
-        elif rules is self.collect_rules_for_tab("album"):
-            return fv.get("Album", "")
-        return ""
-
-    def _group_rules_by_logic(self, rules):
-        """Group rules into logical blocks based on AND/OR operators"""
-        if not rules:
-            return []
-
-        blocks = []
-        current_block = []
-
-        for i, rule in enumerate(rules):
-            # First rule always starts a block
-            if i == 0:
-                current_block.append(rule)
-                continue
-
-            logic = rule.get("logic", "AND")
-
-            if logic == "AND":
-                # AND continues the current block
-                current_block.append(rule)
-            else:
-                # OR starts a new block
-                if current_block:
-                    blocks.append(current_block)
-                current_block = [rule]
-
-        # Don't forget the last block
-        if current_block:
-            blocks.append(current_block)
-
-        return blocks
-
-    def _eval_rule_block(self, rule_block, fv):
-        """Evaluate a block of rules with AND logic (all rules in block must match)"""
-        if not rule_block:
-            return False
-
-        for rule in rule_block:
-            if not self._eval_single_rule(rule, fv):
-                return False
-
-        return True
-
-    def _eval_single_rule(self, rule, fv):
-        """Evaluate a single rule (moved from _eval_rule)"""
-        field = rule.get("if_field", "")
-        op = rule.get("if_operator", "")
-        val = rule.get("if_value", "")
-        actual = str(fv.get(field, ""))
-
-        if op == "is":
-            return actual == val
-        if op == "contains":
-            return val in actual
-        if op == "starts with":
-            return actual.startswith(val)
-        if op == "ends with":
-            return actual.endswith(val)
-        if op == "is empty":
-            return actual == ""
-        if op == "is not empty":
-            return actual != ""
-        if op == "is latest version":
-            title = fv.get("Title", "")
-            artist = fv.get("Artist", "")
-            coverartist = fv.get("CoverArtist", "")
-            version = fv.get("Version", "0")
-            return self.is_latest_version_full(title, artist, coverartist, version)
-        if op == "is not latest version":
-            title = fv.get("Title", "")
-            artist = fv.get("Artist", "")
-            coverartist = fv.get("CoverArtist", "")
-            version = fv.get("Version", "0")
-            return not self.is_latest_version_full(title, artist, coverartist, version)
-        return False
-
-    # Update the is_latest_version method to handle full song key
-    def is_latest_version_full(self, title, artist, coverartist, version):
-        if not self.latest_versions:
-            return True
-
-        song_key = f"{title}|{artist}|{coverartist}"
-        return self.latest_versions.get(song_key, version) == version
-
-    def _apply_template(self, template, fv):
-        """Apply template with field values."""
-        if not template:
-            return ""
-
-        try:
-            result = template
-            for k, v in fv.items():
-                placeholder = "{" + k + "}"
-                if placeholder in result:
-                    # FIXED: Safe string replacement for non-ASCII
-                    safe_value = str(v) if v is not None else ""
-                    result = result.replace(placeholder, safe_value)
-
-            # Also handle common field names that might be in the template
-            common_fields = {
-                "Title": fv.get("Title", ""),
-                "Artist": fv.get("Artist", ""),
-                "CoverArtist": fv.get("CoverArtist", ""),
-                "Version": fv.get("Version", ""),
-                "Discnumber": fv.get("Discnumber", ""),
-                "Track": fv.get("Track", ""),
-                "Date": fv.get("Date", ""),
-                "Comment": fv.get("Comment", ""),
-                "Special": fv.get("Special", ""),
-            }
-
-            for field_name, field_value in common_fields.items():
-                placeholder = "{" + field_name + "}"
-                if placeholder in result:
-                    safe_value = str(field_value) if field_value is not None else ""
-                    result = result.replace(placeholder, safe_value)
-        except Exception as e:
-            print(f"Error applying template '{template}': {e}")
-            return ""
-        return result
-
-    def debug_rules(self):
-        """Debug method to see what rules are loaded"""
+    def debug_rules(self) -> None:
+        """Debug method to see what rules are loaded."""
         print("=== DEBUG RULES ===")
         for tab in ["title", "artist", "album"]:
             rules = self.collect_rules_for_tab(tab)
             print(f"{tab.upper()} rules: {len(rules)}")
             for i, rule in enumerate(rules):
                 print(
-                    f"  Rule {i}: IF {rule.get('if_field')} {rule.get('if_operator')} '{rule.get('if_value')}' THEN '{rule.get('then_template')}'"
+                    f"  Rule {i}: IF {rule.get('if_field')} {rule.get('if_operator')} '{rule.get('if_value')}' THEN '{rule.get('then_template')}'",
                 )
         print("===================")
 
     # -------------------------
     # Version scanning - UPDATED with auto-scan
     # -------------------------
-    def scan_versions(self):
+    def scan_versions(self) -> None:
+        """Scan all loaded files to find versions for each unique song (by title+artist+coverartist)."""
         if not self.mp3_files:
             messagebox.showwarning("No files", "Load a folder first")
             return
 
         self.btn_scan_versions.configure(state="disabled", text="Scanning...")
 
-        def scan_in_background():
+        def scan_in_background() -> tuple[dict[str, list[str]], dict[str, str]]:
             song_versions = {}
-            total = len(self.mp3_files)
+            _total = len(self.mp3_files)
             completed = 0
 
             with ThreadPoolExecutor(max_workers=4) as executor:
-                futures = {executor.submit(self.get_file_data, p): p for p in self.mp3_files}
+                futures = {executor.submit(self.file_manager.get_file_data, p): p for p in self.mp3_files}
                 for future in as_completed(futures):
                     p = futures[future]
                     try:
@@ -2834,7 +2471,7 @@ class DFApp(ctk.CTk):
 
             return song_versions, latest_versions
 
-        def on_scan_complete(result):
+        def on_scan_complete(result: tuple[dict[str, list[str]], dict[str, str]]) -> None:
             self.song_versions, self.latest_versions = result
             self.btn_scan_versions.configure(state="normal", text="Scan Versions")
             messagebox.showinfo("Scan Complete", f"Scanned {len(self.song_versions)} unique songs.")
@@ -2843,23 +2480,15 @@ class DFApp(ctk.CTk):
 
         # Start background scanning
         threading.Thread(
-            target=lambda: self.after(0, lambda: on_scan_complete(scan_in_background())), daemon=True
+            target=lambda: self.after(0, lambda: on_scan_complete(scan_in_background())),
+            daemon=True,
         ).start()
 
-    def is_latest_version(self, title, version):
-        if not self.latest_versions:
-            return True
-
-        # Find the song key for this title (we need to search since we don't have artist/coverartist here)
-        for song_key, latest_version in self.latest_versions.items():
-            if title in song_key:  # Simple matching - could be improved
-                return latest_version == version
-        return True
-
     # -------------------------
-    # Apply metadata to files - FIXED PROGRESS DIALOG
+    # Apply metadata to files
     # -------------------------
-    def apply_to_selected(self):
+    def apply_to_selected(self) -> None:
+        """Apply metadata changes to selected files."""
         if self.operation_in_progress:
             messagebox.showinfo("Operation in progress", "Please wait for the current operation to complete.")
             return
@@ -2881,7 +2510,8 @@ class DFApp(ctk.CTk):
         self.progress_dialog = ProgressDialog(self, "Applying Metadata")
         self.progress_dialog.update_progress(0, len(paths), "Starting...")
 
-        def apply_in_background():
+        def apply_in_background() -> tuple[int, list[str]]:
+            """Apply metadata changes in background thread."""
             success_count = 0
             total = len(paths)
             errors = []
@@ -2891,9 +2521,9 @@ class DFApp(ctk.CTk):
                     break
 
                 try:
-                    j = self.get_file_data(p)
+                    j = self.file_manager.get_file_data(p)
                     if not j:
-                        errors.append(f"No metadata: {os.path.basename(p)}")
+                        errors.append(f"No metadata: {Path(p).name}")
                         continue
 
                     fv = {
@@ -2905,11 +2535,23 @@ class DFApp(ctk.CTk):
                         "Discnumber": j.get("Discnumber", ""),
                         "Track": j.get("Track", ""),
                         "Comment": j.get("Comment", ""),
-                        "Special": j.get("Special", ""),  # NEW: Added Special field
+                        "Special": j.get("Special", ""),
                     }
-                    new_title = self._apply_rules_list(self.collect_rules_for_tab("title"), fv)
-                    new_artist = self._apply_rules_list(self.collect_rules_for_tab("artist"), fv)
-                    new_album = self._apply_rules_list(self.collect_rules_for_tab("album"), fv)
+                    new_title = RuleManager.apply_rules_list(
+                        self.collect_rules_for_tab("title"),
+                        fv,
+                        self.latest_versions,
+                    )
+                    new_artist = RuleManager.apply_rules_list(
+                        self.collect_rules_for_tab("artist"),
+                        fv,
+                        self.latest_versions,
+                    )
+                    new_album = RuleManager.apply_rules_list(
+                        self.collect_rules_for_tab("album"),
+                        fv,
+                        self.latest_versions,
+                    )
 
                     # write tags
                     cover_bytes = None
@@ -2920,28 +2562,31 @@ class DFApp(ctk.CTk):
                         title=new_title,
                         artist=new_artist,
                         album=new_album,
-                        track=fv.get("Track", None),
-                        disc=fv.get("Discnumber", None),
-                        date=fv.get("Date", None),
+                        track=fv.get("Track"),
+                        disc=fv.get("Discnumber"),
+                        date=fv.get("Date"),
                         cover_bytes=cover_bytes,
                         cover_mime=cover_mime,
                     ):
                         success_count += 1
                     else:
-                        errors.append(f"Failed to write: {os.path.basename(p)}")
+                        errors.append(f"Failed to write: {Path(p).name}")
 
                 except Exception as e:
-                    errors.append(f"Error with {os.path.basename(p)}: {str(e)}")
+                    errors.append(f"Error with {Path(p).name}: {e!s}")
 
                 # Update progress - FORCE UPDATE
                 if self.progress_dialog:
                     self.progress_dialog.update_progress(
-                        i + 1, total, f"Applying to {i + 1}/{total}: {os.path.basename(p)}"
+                        i + 1,
+                        total,
+                        f"Applying to {i + 1}/{total}: {Path(p).name}",
                     )
 
             return success_count, errors
 
-        def on_apply_complete(result):
+        def on_apply_complete(result: tuple[int, list[str]]) -> None:
+            """Handle completion of apply operation."""
             success_count, errors = result
 
             # Close progress dialog
@@ -2952,7 +2597,7 @@ class DFApp(ctk.CTk):
             # Show results
             if errors:
                 error_msg = f"Applied to {success_count}/{len(paths)} files\n\nErrors ({len(errors)}):\n" + "\n".join(
-                    errors[:5]
+                    errors[:5],
                 )  # Show first 5 errors
                 if len(errors) > 5:
                     error_msg += f"\n... and {len(errors) - 5} more errors"
@@ -2965,10 +2610,12 @@ class DFApp(ctk.CTk):
 
         # Start background application
         threading.Thread(
-            target=lambda: self.after(0, lambda: on_apply_complete(apply_in_background())), daemon=True
+            target=lambda: self.after(0, lambda: on_apply_complete(apply_in_background())),
+            daemon=True,
         ).start()
 
-    def apply_to_all(self):
+    def apply_to_all(self) -> None:
+        """Apply metadata changes to all loaded files with confirmation."""
         if not self.mp3_files:
             messagebox.showwarning("No files", "Load a folder first")
             return
@@ -2986,8 +2633,8 @@ class DFApp(ctk.CTk):
     # Preset save/load - UPDATED: Individual files in presets folder
     # -------------------------
     @property
-    def presets_folder(self):
-        """Get the presets folder path"""
+    def presets_folder(self) -> Path:
+        """Get the presets folder path."""
         try:
             if getattr(sys, "frozen", False):
                 # Running as bundled executable
@@ -2998,14 +2645,14 @@ class DFApp(ctk.CTk):
 
             presets_folder = base / "presets"
             presets_folder.mkdir(exist_ok=True)  # Create if doesn't exist
-            return presets_folder
         except Exception:
             # Fallback to current working directory
             presets_folder = Path("presets")
             presets_folder.mkdir(exist_ok=True)
-            return presets_folder
+        return presets_folder
 
-    def save_preset(self):
+    def save_preset(self) -> None:
+        """Save current rules as a preset in individual file in presets folder."""
         name = simpledialog.askstring("Preset name", "Preset name:")
         if not name:
             return
@@ -3024,7 +2671,7 @@ class DFApp(ctk.CTk):
         try:
             # Save as individual file in presets folder
             preset_file = self.presets_folder / f"{name}.json"
-            with open(preset_file, "w", encoding="utf-8") as f:
+            with preset_file.open("w", encoding="utf-8") as f:
                 json.dump(preset, f, indent=2, ensure_ascii=False)
 
             # update combobox list
@@ -3035,8 +2682,8 @@ class DFApp(ctk.CTk):
             self.lbl_file_info.configure(text=original_text)
             messagebox.showerror("Error", f"Could not save preset: {e}")
 
-    def _reload_presets(self):
-        """Reload presets from individual files in presets folder"""
+    def _reload_presets(self) -> None:
+        """Reload presets from individual files in presets folder."""
         try:
             presets_folder = self.presets_folder
             vals = []
@@ -3057,7 +2704,8 @@ class DFApp(ctk.CTk):
             print(f"Error loading presets: {e}")
             self.preset_combo["values"] = []
 
-    def delete_preset(self):
+    def delete_preset(self) -> None:
+        """Delete the selected preset."""
         name = self.preset_var.get()
         if not name:
             return
@@ -3087,7 +2735,8 @@ class DFApp(ctk.CTk):
             self.lbl_file_info.configure(text=original_text)
             messagebox.showerror("Error", f"Could not delete preset: {e}")
 
-    def on_preset_selected(self, event=None):
+    def on_preset_selected(self, _event: tk.Event | None = None) -> None:
+        """Handle preset selection from the combobox."""
         name = self.preset_var.get()
         if not name:
             return
@@ -3105,7 +2754,7 @@ class DFApp(ctk.CTk):
                 messagebox.showwarning("Not Found", f"Preset file '{name}.json' not found")
                 return
 
-            with open(preset_file, "r", encoding="utf-8") as f:
+            with preset_file.open("r", encoding="utf-8") as f:
                 preset = json.load(f)
 
             if not preset:
@@ -3126,7 +2775,11 @@ class DFApp(ctk.CTk):
                 for i, r in enumerate(rules_to_load):
                     is_first = i == 0
                     row = RuleRow(
-                        cont, self.rule_fields, self.rule_ops, delete_callback=self.delete_rule, is_first=is_first
+                        cont,
+                        self.rule_fields,
+                        self.rule_ops,
+                        delete_callback=self.delete_rule,
+                        is_first=is_first,
                     )
                     row.pack(fill="x", padx=6, pady=3)
                     row.field_var.set(r.get("if_field", self.rule_fields[0]))
@@ -3153,25 +2806,28 @@ class DFApp(ctk.CTk):
     # -------------------------
     # Helper methods
     # -------------------------
-    def _container_to_tab(self, container):
-        """Get tab name from container widget"""
+    def _container_to_tab(self, container: ctk.CTkFrame) -> str:
+        """Get tab name from container widget."""
         for tab_name, cont in self.rule_containers.items():
             if cont == container:
                 return tab_name
         return "title"
 
-    def update_rule_button_states(self, container):
-        """Update button states for rules in a container"""
+    def update_rule_button_states(self, container: ctk.CTkFrame) -> None:
+        """Update button states for rules in a container."""
         children = [w for w in container.winfo_children() if isinstance(w, RuleRow)]
         for i, child in enumerate(children):
             child.set_button_states(i == 0, i == len(children) - 1)
 
-    def run(self):
+    def run(self) -> None:
+        """Run the main application loop."""
         # load presets combobox
         self._reload_presets()
         self.mainloop()
 
-def main():
+
+def main() -> None:
+    """Run main entry point."""
     app = DFApp()
     app.run()
 
