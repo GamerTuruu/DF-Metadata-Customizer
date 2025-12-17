@@ -66,12 +66,19 @@ The app reads JSON metadata embedded in MP3 comment fields (common in fan archiv
    ```bash
    git clone https://github.com/GamerTuruu/DF-Metadata-Customizer.git
    cd DF-Metadata-Customizer
+   ```
 2. Install dependencies:
    ```bash
-   pip install -r requirements.txt
+   pip install .
+   ```
+   or
+   ```bash
+   uv sync
+   ```
 3. Run the application:
    ```bash
    python DF_Metadata_Customizer.py
+   ```
 
 ### Option 2: Windows EXE (No Python Required)
 
@@ -171,7 +178,7 @@ Toggle between dark and light themes using the ☀️/🌙 button in the top-rig
    - Edit JSON metadata directly with validation
    - Presets are saved in individual files in the "presets" folder
 #### 🔧 Technical Details
-   - Python 3.8+
+   - Python 3.10+
    - customtkinter
    - Pillow (PIL)
    - mutagen
