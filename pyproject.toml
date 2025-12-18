@@ -16,5 +16,9 @@ dev = [
     "ruff>=0.14.9",
 ]
 
-[tool.setuptools]
-py-modules = ["DF_Metadata_Customizer"]
+[tool.setuptools.packages.find]
+include = ["df_metadata_customizer"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"

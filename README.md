@@ -69,7 +69,7 @@ The app reads JSON metadata embedded in MP3 comment fields (common in fan archiv
    ```
 2. Install dependencies:
    ```bash
-   pip install .
+   pip install -e .
    ```
    or
    ```bash
@@ -77,7 +77,11 @@ The app reads JSON metadata embedded in MP3 comment fields (common in fan archiv
    ```
 3. Run the application:
    ```bash
-   python DF_Metadata_Customizer.py
+   python -m df_metadata_customizer
+   ```
+   or
+   ```
+   python df_metadata_customizer/__main__.py
    ```
 
 ### Option 2: Windows EXE (No Python Required)
