@@ -2,13 +2,11 @@
 
 import contextlib
 import json
-import re
 import shutil
 import sys
 import threading
 import time
 import tkinter as tk
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from tkinter import filedialog, messagebox, simpledialog, ttk
 
@@ -44,8 +42,6 @@ class DFApp(ctk.CTk):
         self.current_json = None
         self.current_json_prefix = None  # Store the text before JSON
         self.current_cover_bytes = None
-        self.latest_versions = {}  # title -> latest version string
-        self.song_versions = {}  # title -> [versions]
         # Updated column order to include 'special' and remove forward slash handling
         self.column_order = [
             "title",
@@ -59,7 +55,6 @@ class DFApp(ctk.CTk):
             "special",
             "file",
         ]
-        self.scan_thread = None  # Background scanning thread
         self.visible_file_indices = []  # Track visible files for prev/next navigation
         self.progress_dialog = None  # Progress dialog reference
         self.operation_in_progress = False  # Prevent multiple operations
@@ -201,13 +196,10 @@ class DFApp(ctk.CTk):
         # Top controls: folder select + search + select all
         top_ctl = ctk.CTkFrame(self.left_frame, fg_color="transparent")
         top_ctl.grid(row=0, column=0, sticky="ew", padx=8, pady=(8, 6))
-        top_ctl.grid_columnconfigure(2, weight=1)  # Give more weight to search
+        top_ctl.grid_columnconfigure(1, weight=1)  # Give more weight to search
 
         self.btn_select_folder = ctk.CTkButton(top_ctl, text="Select Folder", command=self.select_folder)
         self.btn_select_folder.grid(row=0, column=0, padx=(0, 8))
-
-        self.btn_scan_versions = ctk.CTkButton(top_ctl, text="Scan Versions", command=self.scan_versions)
-        self.btn_scan_versions.grid(row=0, column=1, padx=(0, 8))
 
         self.search_var = tk.StringVar()
         self.entry_search = ctk.CTkEntry(
@@ -215,7 +207,7 @@ class DFApp(ctk.CTk):
             placeholder_text="Search title / artist / coverartist / disc / track / special / version=latest",
             textvariable=self.search_var,
         )
-        self.entry_search.grid(row=0, column=2, sticky="ew", padx=(0, 8))
+        self.entry_search.grid(row=0, column=1, sticky="ew", padx=(0, 8))
         self.entry_search.bind("<KeyRelease>", self.on_search_keyrelease)
 
         self.select_all_var = tk.BooleanVar(value=False)
@@ -225,9 +217,9 @@ class DFApp(ctk.CTk):
             variable=self.select_all_var,
             command=self.on_select_all,
         )
-        self.chk_select_all.grid(row=0, column=3, padx=(0, 0))
+        self.chk_select_all.grid(row=0, column=2, padx=(0, 0))
 
-        # Sort controls - NEW MULTI-LEVEL SORTING
+        # Sort controls
         sort_frame = ctk.CTkFrame(self.left_frame, fg_color="transparent")
         sort_frame.grid(row=1, column=0, sticky="ew", padx=8, pady=(0, 4))
         sort_frame.grid_columnconfigure(1, weight=1)
@@ -561,72 +553,8 @@ class DFApp(ctk.CTk):
             print("No files loaded, stats reset to 0")
             return
 
-        # Initialize counters
-        unique_ta = set()
-        unique_tac = set()
-        neuro_solos_unique = set()
-        neuro_solos_total = 0
-        evil_solos_unique = set()
-        evil_solos_total = 0
-        duets_unique = set()
-        duets_total = 0
-        other_unique = set()
-        other_total = 0
-
-        # Process all files
-        processed = 0
-        for file_path in self.mp3_files:
-            jsond = self.file_manager.get_file_data(file_path)
-            if not jsond:
-                continue
-
-            title = jsond.get("Title", "").strip()
-            artist = jsond.get("Artist", "").strip()
-            coverartist = jsond.get("CoverArtist", "").strip()
-
-            # Skip if missing essential data
-            if not title:
-                continue
-
-            # Unique combinations
-            ta_key = f"{title}|{artist}"
-            tac_key = f"{title}|{artist}|{coverartist}"
-
-            unique_ta.add(ta_key)
-            unique_tac.add(tac_key)
-
-            # Categorize based on CoverArtist
-            if coverartist == "Neuro & Evil":
-                duets_unique.add(ta_key)
-                duets_total += 1
-            elif coverartist == "Neuro":
-                neuro_solos_unique.add(ta_key)
-                neuro_solos_total += 1
-            elif coverartist == "Evil":
-                evil_solos_unique.add(ta_key)
-                evil_solos_total += 1
-            else:
-                other_unique.add(ta_key)
-                other_total += 1
-
-            processed += 1
-            if processed % 100 == 0:
-                print(f"Processed {processed}/{len(self.mp3_files)} files...")
-
-        # Update statistics
-        self.stats = {
-            "all_songs": len(self.mp3_files),
-            "unique_ta": len(unique_ta),
-            "unique_tac": len(unique_tac),
-            "neuro_solos_unique": len(neuro_solos_unique),
-            "neuro_solos_total": neuro_solos_total,
-            "evil_solos_unique": len(evil_solos_unique),
-            "evil_solos_total": evil_solos_total,
-            "duets_unique": len(duets_unique),
-            "duets_total": duets_total,
-            "other_unique": len(other_unique),
-            "other_total": other_total,
-        }
+        # Delegate calculation to FileManager
+        self.stats = self.file_manager.calculate_statistics()
 
         print("Statistics calculated:")
         for key, value in self.stats.items():
@@ -844,30 +772,13 @@ class DFApp(ctk.CTk):
         self.lbl_file_info.configure(text=f"Loading {len(self.mp3_files)} files...")
         self.update_idletasks()
 
-        def load_file_data_batch() -> list[tuple[int, dict]]:
+        def load_file_data_batch() -> bool:
             """Load file data in batches for better performance."""
-            file_data = []
             total = len(self.mp3_files)
 
-            # Pre-load all file data first
+            # Pre-load all file data first (populates FileManager cache/staging)
             for i, p in enumerate(self.mp3_files):
-                jsond, _prefix = self.file_manager.get_file_data_with_prefix(p)
-                # Create a dictionary with all field values
-                field_values = {
-                    "title": jsond.get("Title") or Path(p).stem,
-                    "artist": jsond.get("Artist") or "",
-                    "coverartist": jsond.get("CoverArtist") or "",
-                    "version": jsond.get("Version") or "",
-                    "disc": jsond.get("Discnumber") or "",
-                    "track": jsond.get("Track") or "",
-                    "date": jsond.get("Date") or "",
-                    "comment": jsond.get("Comment") or "",
-                    "special": jsond.get("Special") or "",
-                    "file": Path(p).name,
-                }
-
-                # Store the original index and field values
-                file_data.append((i, field_values))
+                self.file_manager.get_file_data_with_prefix(p)
 
                 # Update progress every 10 files
                 if (
@@ -875,12 +786,14 @@ class DFApp(ctk.CTk):
                     and self.progress_dialog
                     and not self.progress_dialog.update_progress(i, total, f"Loading metadata... {i}/{total}")
                 ):
-                    return None
+                    return False
 
-            return file_data
+            # Calculate versions immediately after loading
+            self.file_manager.update_version_info()
+            return True
 
-        def on_data_loaded(file_data: list[tuple[int, dict]] | None) -> None:
-            if file_data is None or (self.progress_dialog and self.progress_dialog.cancelled):
+        def on_data_loaded(success: bool) -> None:
+            if not success or (self.progress_dialog and self.progress_dialog.cancelled):
                 self.lbl_file_info.configure(text="Loading cancelled")
                 self.btn_select_folder.configure(state="normal")
                 self.operation_in_progress = False
@@ -889,8 +802,11 @@ class DFApp(ctk.CTk):
                     self.progress_dialog = None
                 return
 
-            # Apply multi-level sorting
-            sorted_data = RuleManager.apply_multi_sort_with_dict(self.sort_rules, file_data)
+            # Get view data from FileManager
+            df = self.file_manager.get_view_data(self.mp3_files)
+
+            # Apply multi-level sorting using Polars
+            sorted_df = RuleManager.apply_multi_sort_polars(self.sort_rules, df)
 
             # Clear tree first
             for it in self.tree.get_children():
@@ -898,26 +814,58 @@ class DFApp(ctk.CTk):
 
             # Populate tree in batches for better performance
             self.visible_file_indices = []
+
+            # Convert to list of dicts for iteration (still needed for treeview insertion)
+            sorted_rows = sorted_df.to_dicts()
+
             batch_size = 50
 
             def populate_batch(start_idx: int) -> None:
-                end_idx = min(start_idx + batch_size, len(sorted_data))
+                end_idx = min(start_idx + batch_size, len(sorted_rows))
                 for i in range(start_idx, end_idx):
-                    orig_idx, field_values = sorted_data[i]
+                    row = sorted_rows[i]
+                    orig_idx = row["orig_index"]
+
                     # Create values tuple in the current column order
-                    values = tuple(field_values[col] for col in self.column_order)
-                    self.tree.insert("", "end", iid=str(orig_idx), values=values)
+                    values = []
+                    for col in self.column_order:
+                        if col == "disc":
+                            val = row.get("Discnumber", "")
+                        elif col == "track":
+                            val = row.get("Track", "")
+                        elif col == "special":
+                            val = row.get("Special", "")
+                        elif col == "date":
+                            val = row.get("Date", "")
+                        elif col == "version":
+                            val = row.get("Version", 0.0)
+                            val = str(int(val)) if isinstance(val, float) and val.is_integer() else str(val)
+                        elif col == "title":
+                            val = row.get("Title", "")
+                        elif col == "artist":
+                            val = row.get("Artist", "")
+                        elif col == "coverartist":
+                            val = row.get("CoverArtist", "")
+                        elif col == "comment":
+                            val = row.get("Comment", "")
+                        elif col == "file":
+                            val = row.get("file", "")
+                        else:
+                            val = ""
+                        values.append(val)
+
+                    self.tree.insert("", "end", iid=str(orig_idx), values=tuple(values))
                     self.visible_file_indices.append(orig_idx)
 
                 # Update progress for tree population
                 if self.progress_dialog:
                     self.progress_dialog.update_progress(
                         end_idx,
-                        len(sorted_data),
-                        f"Building list... {end_idx}/{len(sorted_data)}",
+                        len(sorted_rows),
+                        f"Building list... {end_idx}/{len(sorted_rows)}",
                     )
 
-                if end_idx < len(sorted_data):
+                if end_idx < len(sorted_rows):
                     # Schedule next batch
                     self.after(1, lambda: populate_batch(end_idx))
                 else:
@@ -933,9 +881,6 @@ class DFApp(ctk.CTk):
                     # Calculate statistics after loading
                     self.calculate_statistics()
 
-                    # Auto-scan versions after loading
-                    self.after(500, self.auto_scan_versions)
-
                     # Close progress dialog after a brief delay
                     if self.progress_dialog:
                         self.after(500, self.progress_dialog.destroy)
@@ -947,73 +892,6 @@ class DFApp(ctk.CTk):
         # Start background loading
         threading.Thread(
             target=lambda: self.after(0, lambda: on_data_loaded(load_file_data_batch())),
-            daemon=True,
-        ).start()
-
-    # -------------------------
-    # NEW: Auto-scan versions
-    # -------------------------
-    def auto_scan_versions(self) -> None:
-        """Automatically scan versions after loading a folder."""
-        if not self.mp3_files:
-            return
-
-        def scan_in_background() -> tuple[dict[str, list[str]], dict[str, str]]:
-            song_versions = {}
-            _total = len(self.mp3_files)
-            completed = 0
-
-            with ThreadPoolExecutor(max_workers=4) as executor:
-                futures = {executor.submit(self.file_manager.get_file_data, p): p for p in self.mp3_files}
-                for future in as_completed(futures):
-                    p = futures[future]
-                    try:
-                        j = future.result()
-                        if not j:
-                            continue
-                        title = j.get("Title", "")
-                        artist = j.get("Artist", "")
-                        coverartist = j.get("CoverArtist", "")
-                        version = j.get("Version", "0")
-
-                        # Create a unique key that considers title, artist, AND coverartist
-                        song_key = f"{title}|{artist}|{coverartist}"
-
-                        if song_key not in song_versions:
-                            song_versions[song_key] = []
-                        song_versions[song_key].append(version)
-                    except Exception as e:
-                        print(f"Error scanning {p}: {e}")
-                    finally:
-                        completed += 1
-
-            # Compute latest versions
-            latest_versions = {}
-            for song_key, versions in song_versions.items():
-                parsed = []
-                for v in versions:
-                    nums = re.findall(r"\d+", str(v))
-                    if nums:
-                        parsed.append([int(x) for x in nums])
-                    else:
-                        parsed.append([0])
-                # find max by lexicographic comparison
-                max_idx = 0
-                for i, p in enumerate(parsed):
-                    if p > parsed[max_idx]:
-                        max_idx = i
-                latest_versions[song_key] = versions[max_idx]
-
-            return song_versions, latest_versions
-
-        def on_scan_complete(result: tuple[dict[str, list[str]], dict[str, str]]) -> None:
-            self.song_versions, self.latest_versions = result
-            # Update preview to show versions
-            self.update_preview()
-
-        # Start background scanning silently (no UI feedback)
-        threading.Thread(
-            target=lambda: self.after(0, lambda: on_scan_complete(scan_in_background())),
             daemon=True,
         ).start()
 
@@ -1232,140 +1110,6 @@ class DFApp(ctk.CTk):
         if hasattr(self, "_search_after_id"):
             self.after_cancel(self._search_after_id)
         self._search_after_id = self.after(300, self.refresh_tree)  # 300ms delay
-
-    def _parse_search_query(self, q: str) -> tuple[list[dict[str, str]], list[str]]:
-        """Parse search query into structured filters and free-text terms.
-
-        Supports expressions like: Artist=randomName Disc=3.2 version=latest
-        Operators supported: ==, !=, >=, <=, >, <, =, ~, !~
-        - '=' is treated as substring contains (case-insensitive)
-        - '==' exact equality (case-insensitive)
-        - '~' contains (alias for '=')
-        - '!~' and '!=' negative contains
-        - Special handling for 'version=latest'
-        Numeric comparisons attempt float conversion, else lexicographic.
-        Returns (filters, free_terms) where filters is a list of dicts
-        with keys: field, op, value
-        """
-        if not q:
-            return [], []
-
-        q_orig = q
-        filters = []
-        # allowed fields (case-insensitive) - UPDATED: Added special field
-        _allowed = {
-            f: f
-            for f in [
-                "title",
-                "artist",
-                "coverartist",
-                "version",
-                "disc",
-                "track",
-                "date",
-                "comment",
-                "special",
-                "file",
-            ]
-        }
-
-        # regex to find key<op>value tokens; value may be quoted
-        token_re = re.compile(
-            r"(?i)\b(title|artist|coverartist|version|disc|track|date|comment|special|file)\s*(==|!=|>=|<=|>|<|=|~|!~)\s*(?:\"([^\"]+)\"|'([^']+)'|(\S+))",
-        )
-
-        # find all matches
-        for m in token_re.finditer(q_orig):
-            key = m.group(1).lower()
-            op = m.group(2)
-            val = m.group(3) or m.group(4) or m.group(5) or ""
-
-            # Special handling for version=latest
-            if key == "version" and val.lower() == "latest":
-                # Convert to special filter for latest versions
-                filters.append({"field": key, "op": "==", "value": "_latest_"})
-            else:
-                filters.append({"field": key, "op": op, "value": val})
-
-        # remove matched portions from query to leave free text
-        q_clean = token_re.sub("", q_orig)
-
-        # remaining free terms (split by whitespace, ignore empty)
-        free_terms = [t.lower() for t in re.split(r"\s+", q_clean.strip()) if t.strip()]
-
-        return filters, free_terms
-
-    def _match_filters(self, filters: list[dict[str, str]], free_terms: list[str], row_vals: dict[str, str]) -> bool:
-        """Evaluate whether a row (tuple with fields) matches filters and free terms.
-
-        row_vals: dict mapping lowercase field names to values (strings)
-        """
-        # First evaluate structured filters
-        for flt in filters:
-            field = flt.get("field")
-            op = flt.get("op")
-            val = str(flt.get("value", "")).lower()
-
-            field_val = str(row_vals.get(field, ""))
-            field_val_l = field_val.lower()
-
-            # Special handling for version=latest - FIXED: Use same key format as elsewhere
-            if field == "version" and val == "_latest_":
-                title = row_vals.get("title", "")
-                artist = row_vals.get("artist", "")
-                coverartist = row_vals.get("coverartist", "")
-                version = field_val
-
-                # Create the same unique key used in version scanning
-                song_key = f"{title}|{artist}|{coverartist}"
-
-                # Check if this version is the latest for this specific song key
-                if song_key in self.latest_versions and version == self.latest_versions[song_key]:
-                    continue  # It is the latest version, continue to next filter
-                return False  # Not the latest version, filter fails
-
-            # Try numeric comparison when possible
-            if op in (">", "<", ">=", "<="):
-                try:
-                    a = float(field_val)
-                    b = float(val)
-                except Exception:
-                    # fallback to lexicographic
-                    a = field_val_l
-                    b = val
-
-                try:
-                    if op == ">" and not (a > b):
-                        return False
-                    if op == "<" and not (a < b):
-                        return False
-                    if op == ">=" and not (a >= b):
-                        return False
-                    if op == "<=" and not (a <= b):
-                        return False
-                except Exception:
-                    return False
-            elif op in ("=", "~"):
-                if val not in field_val_l:  # contains (case-insensitive)
-                    return False
-            elif op == "==":
-                if field_val_l != val:
-                    return False
-            elif op in ("!=", "!~"):
-                if val in field_val_l:
-                    return False
-            else:
-                # unknown operator - fail safe
-                return False
-
-        # Then evaluate free text terms (all must be present somewhere)
-        if free_terms:
-            hay = " ".join([str(v).lower() for v in row_vals.values()])
-            for t in free_terms:
-                if t not in hay:
-                    return False
-
-        return True
 
     def on_tree_click(self, event: tk.Event) -> None:
         """Handle column header clicks for reordering."""
@@ -1766,6 +1510,9 @@ class DFApp(ctk.CTk):
                 self.current_json = json_data
                 self.current_json_prefix = prefix_text
 
+                # Update versions as data changed
+                self.file_manager.update_version_info()
+
                 # Update the treeview with new data
                 self.update_tree_row(self.current_index, json_data)
 
@@ -1886,6 +1633,9 @@ class DFApp(ctk.CTk):
 
                 # Update cache entries
                 self.file_manager.update_file_path(current_path, new_path)
+                # Update versions as path changed
+                self.file_manager.update_version_info()
+
                 if current_path in self.cover_cache:
                     self.cover_cache[new_path] = self.cover_cache.pop(current_path)
 
@@ -2057,6 +1807,7 @@ class DFApp(ctk.CTk):
                 self.lbl_file_info.configure(text="Scan cancelled")
                 self.btn_select_folder.configure(state="normal")
                 self.operation_in_progress = False
+
                 if self.progress_dialog:
                     self.progress_dialog.destroy()
                     self.progress_dialog = None
@@ -2088,74 +1839,53 @@ class DFApp(ctk.CTk):
         """Refresh tree with search filtering and multi-sort. Supports structured filters including version=latest."""
         q_raw = self.search_var.get().strip()
 
-        # Build file_data list first
-        file_data = []
-        for i, p in enumerate(self.mp3_files):
-            jsond = self.file_manager.get_file_data(p)
-            # Create field values dictionary
-            field_values = {
-                "title": jsond.get("Title") or Path(p).stem,
-                "artist": jsond.get("Artist") or "",
-                "coverartist": jsond.get("CoverArtist") or "",
-                "version": jsond.get("Version") or "",
-                "disc": jsond.get("Discnumber") or "",
-                "track": jsond.get("Track") or "",
-                "date": jsond.get("Date") or "",
-                "comment": jsond.get("Comment") or "",
-                "special": jsond.get("Special") or "",
-                "file": Path(p).name,
-            }
-            file_data.append((i, field_values))
+        # Get view data from FileManager
+        df = self.file_manager.get_view_data(self.mp3_files)
 
-        # If no query, just sort & show all
-        if not q_raw:
-            sorted_data = RuleManager.apply_multi_sort_with_dict(self.sort_rules, file_data)
-            for it in self.tree.get_children():
-                self.tree.delete(it)
-            self.visible_file_indices = []
-            for orig_idx, field_values in sorted_data:
-                # Create values tuple in the current column order
-                values = tuple(field_values[col] for col in self.column_order)
-                self.tree.insert("", "end", iid=str(orig_idx), values=values)
-                self.visible_file_indices.append(orig_idx)
-            # Update search info label
-            self.search_info_label.configure(text=f"{len(self.visible_file_indices)} songs found")
-            # Update statistics
-            self.calculate_statistics()
-            return
+        # Apply search filters
+        filters, free_terms = RuleManager.parse_search_query(q_raw)
+        filtered_df = RuleManager.apply_search_filter(df, filters, free_terms)
 
-        # Parse query into structured filters and free text terms - UPDATED: Added special field and version=latest
-        filters, free_terms = self._parse_search_query(q_raw)
+        # Apply multi-level sort
+        sorted_df = RuleManager.apply_multi_sort_polars(self.sort_rules, filtered_df)
 
-        # Clear existing tree
+        # Clear tree
         for it in self.tree.get_children():
             self.tree.delete(it)
         self.visible_file_indices = []
 
-        # Evaluate each row against filters, collect matches
-        matches = []
-        for orig_idx, field_values in file_data:
-            try:
-                if self._match_filters(filters, free_terms, field_values):
-                    matches.append((orig_idx, field_values))
-            except Exception:
-                continue
-
-        # Apply multi-level sort to the filtered matches so search+sort combine
-        try:
-            sorted_matches = RuleManager.apply_multi_sort_with_dict(self.sort_rules, matches)
-        except Exception:
-            sorted_matches = matches
-
         # Insert sorted matches into the tree
-        for orig_idx, field_values in sorted_matches:
-            try:
-                # Create values tuple in the current column order
-                values = tuple(field_values[col] for col in self.column_order)
-                self.tree.insert("", "end", iid=str(orig_idx), values=values)
-                self.visible_file_indices.append(orig_idx)
-            except Exception:
-                continue
+        sorted_rows = sorted_df.to_dicts()
+        for row in sorted_rows:
+            orig_idx = row["orig_index"]
+            values = []
+            for col in self.column_order:
+                if col == "disc":
+                    val = row.get("Discnumber", "")
+                elif col == "track":
+                    val = row.get("Track", "")
+                elif col == "special":
+                    val = row.get("Special", "")
+                elif col == "date":
+                    val = row.get("Date", "")
+                elif col == "version":
+                    val = row.get("Version", 0.0)
+                    val = str(int(val)) if isinstance(val, float) and val.is_integer() else str(val)
+                elif col == "title":
+                    val = row.get("Title", "")
+                elif col == "artist":
+                    val = row.get("Artist", "")
+                elif col == "coverartist":
+                    val = row.get("CoverArtist", "")
+                elif col == "comment":
+                    val = row.get("Comment", "")
+                elif col == "file":
+                    val = row.get("file", "")
+                else:
+                    val = ""
+                values.append(val)
+            self.tree.insert("", "end", iid=str(orig_idx), values=tuple(values))
+            self.visible_file_indices.append(orig_idx)
 
         # Update search info label with count and filter summary
         info = f"{len(self.visible_file_indices)} songs found"
@@ -2305,7 +2035,6 @@ class DFApp(ctk.CTk):
             self.lbl_out_versions.configure(text="")
             return
 
-        # FIXED: Better handling of non-ASCII characters
         def safe_get(field: str) -> str:
             value = self.current_json.get(field, "")
             # Ensure we return a proper string, handling any encoding issues
@@ -2328,16 +2057,32 @@ class DFApp(ctk.CTk):
             "Special": safe_get("Special"),
         }
 
-        # REMOVED: Problematic debug print that causes encoding errors
-        # print(f"Field values - Title: {repr(fv['Title'])}, Artist: {repr(fv['Artist'])}, CoverArtist: {repr(fv['CoverArtist'])}")
+        # Get latest version for this song to pass to RuleManager
+        current_title = fv.get("Title", "")
+        current_artist = fv.get("Artist", "")
+        current_coverartist = fv.get("CoverArtist", "")
+        song_key = f"{current_title}|{current_artist}|{current_coverartist}"
+
+        try:
+            current_ver = float(fv.get("Version", 0))
+        except (ValueError, TypeError):
+            current_ver = 0.0
+        is_latest = self.file_manager.is_latest_version(song_key, current_ver)
+        fv["is_latest"] = is_latest
 
         # FIXED: Use the correct method to collect rules for each tab
-        new_title = RuleManager.apply_rules_list(self.collect_rules_for_tab("title"), fv, self.latest_versions)
-        new_artist = RuleManager.apply_rules_list(self.collect_rules_for_tab("artist"), fv, self.latest_versions)
-        new_album = RuleManager.apply_rules_list(self.collect_rules_for_tab("album"), fv, self.latest_versions)
-
-        # REMOVED: Problematic debug print
-        # print(f"Preview - Title: '{new_title}', Artist: '{new_artist}', Album: '{new_album}'")
+        new_title = RuleManager.apply_rules_list(
+            self.collect_rules_for_tab("title"),
+            fv,
+        )
+        new_artist = RuleManager.apply_rules_list(
+            self.collect_rules_for_tab("artist"),
+            fv,
+        )
+        new_album = RuleManager.apply_rules_list(
+            self.collect_rules_for_tab("album"),
+            fv,
+        )
 
         # FIXED: Safe text setting for non-ASCII characters
         try:
@@ -2355,16 +2100,17 @@ class DFApp(ctk.CTk):
             self.lbl_out_album.configure(text="")
 
         # Show all versions for current song (considering title + artist + coverartist)
-        current_title = fv.get("Title", "")
-        current_artist = fv.get("Artist", "")
-        current_coverartist = fv.get("CoverArtist", "")
+        # song_key already calculated above
 
-        # Create a unique key that considers all three fields
-        song_key = f"{current_title}|{current_artist}|{current_coverartist}"
-
-        if song_key and song_key in self.song_versions:
-            versions = self.song_versions[song_key]
-            versions_text = ", ".join(sorted(set(versions)))  # Remove duplicates and sort
+        versions = self.file_manager.get_song_versions(song_key)
+        if versions:
+            formatted_versions = []
+            for v in versions:
+                if isinstance(v, float) and v.is_integer():
+                    formatted_versions.append(str(int(v)))
+                else:
+                    formatted_versions.append(str(v))
+            versions_text = ", ".join(formatted_versions)
             self.lbl_out_versions.configure(text=versions_text)
         else:
             self.lbl_out_versions.configure(text="")
@@ -2411,78 +2157,6 @@ class DFApp(ctk.CTk):
                     f"  Rule {i}: IF {rule.get('if_field')} {rule.get('if_operator')} '{rule.get('if_value')}' THEN '{rule.get('then_template')}'",
                 )
         print("===================")
-
-    # -------------------------
-    # Version scanning - UPDATED with auto-scan
-    # -------------------------
-    def scan_versions(self) -> None:
-        """Scan all loaded files to find versions for each unique song (by title+artist+coverartist)."""
-        if not self.mp3_files:
-            messagebox.showwarning("No files", "Load a folder first")
-            return
-
-        self.btn_scan_versions.configure(state="disabled", text="Scanning...")
-
-        def scan_in_background() -> tuple[dict[str, list[str]], dict[str, str]]:
-            song_versions = {}
-            _total = len(self.mp3_files)
-            completed = 0
-
-            with ThreadPoolExecutor(max_workers=4) as executor:
-                futures = {executor.submit(self.file_manager.get_file_data, p): p for p in self.mp3_files}
-                for future in as_completed(futures):
-                    p = futures[future]
-                    try:
-                        j = future.result()
-                        if not j:
-                            continue
-                        title = j.get("Title", "")
-                        artist = j.get("Artist", "")
-                        coverartist = j.get("CoverArtist", "")
-                        version = j.get("Version", "0")
-
-                        # Create a unique key that considers title, artist, AND coverartist
-                        song_key = f"{title}|{artist}|{coverartist}"
-
-                        if song_key not in song_versions:
-                            song_versions[song_key] = []
-                        song_versions[song_key].append(version)
-                    except Exception as e:
-                        print(f"Error scanning {p}: {e}")
-                    finally:
-                        completed += 1
-
-            # Compute latest versions
-            latest_versions = {}
-            for song_key, versions in song_versions.items():
-                parsed = []
-                for v in versions:
-                    nums = re.findall(r"\d+", str(v))
-                    if nums:
-                        parsed.append([int(x) for x in nums])
-                    else:
-                        parsed.append([0])
-                # find max by lexicographic comparison
-                max_idx = 0
-                for i, p in enumerate(parsed):
-                    if p > parsed[max_idx]:
-                        max_idx = i
-                latest_versions[song_key] = versions[max_idx]
-
-            return song_versions, latest_versions
-
-        def on_scan_complete(result: tuple[dict[str, list[str]], dict[str, str]]) -> None:
-            self.song_versions, self.latest_versions = result
-            self.btn_scan_versions.configure(state="normal", text="Scan Versions")
-            messagebox.showinfo("Scan Complete", f"Scanned {len(self.song_versions)} unique songs.")
-            # Refresh preview to show versions
-            self.update_preview()
-
-        # Start background scanning
-        threading.Thread(
-            target=lambda: self.after(0, lambda: on_scan_complete(scan_in_background())),
-            daemon=True,
-        ).start()
 
     # -------------------------
     # Apply metadata to files
@@ -2537,20 +2211,25 @@ class DFApp(ctk.CTk):
                         "Comment": j.get("Comment", ""),
                         "Special": j.get("Special", ""),
                     }
+
+                    song_key = f"{fv['Title']}|{fv['Artist']}|{fv['CoverArtist']}"
+                    try:
+                        current_ver = float(fv.get("Version", 0))
+                    except (ValueError, TypeError):
+                        current_ver = 0.0
+                    fv["is_latest"] = self.file_manager.is_latest_version(song_key, current_ver)
+
                     new_title = RuleManager.apply_rules_list(
                         self.collect_rules_for_tab("title"),
                         fv,
-                        self.latest_versions,
                     )
                     new_artist = RuleManager.apply_rules_list(
                         self.collect_rules_for_tab("artist"),
                         fv,
-                        self.latest_versions,
                     )
                     new_album = RuleManager.apply_rules_list(
                         self.collect_rules_for_tab("album"),
                         fv,
-                        self.latest_versions,
                     )
 
                     # write tags

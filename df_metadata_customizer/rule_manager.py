@@ -2,13 +2,138 @@
 
 import re
 import warnings
-from functools import cmp_to_key
+
+import polars as pl
 
 from df_metadata_customizer.widgets import SortRuleRow
 
 
 class RuleManager:
     """Utility class for managing and applying metadata rules."""
+
+    @staticmethod
+    def parse_search_query(q: str) -> tuple[list[dict[str, str]], list[str]]:
+        """Parse search query into structured filters and free-text terms."""
+        if not q:
+            return [], []
+
+        q_orig = q
+        filters = []
+
+        # regex to find key<op>value tokens; value may be quoted
+        token_re = re.compile(
+            r"(?i)\b(title|artist|coverartist|version|disc|track|date|comment|special|file)\s*(==|!=|>=|<=|>|<|=|~|!~)\s*(?:\"([^\"]+)\"|'([^']+)'|(\S+))",
+        )
+
+        # find all matches
+        for m in token_re.finditer(q_orig):
+            key = m.group(1).lower()
+            op = m.group(2)
+            val = m.group(3) or m.group(4) or m.group(5) or ""
+
+            # Special handling for version=latest
+            if key == "version" and val.lower() == "latest":
+                filters.append({"field": key, "op": "==", "value": "_latest_"})
+            else:
+                filters.append({"field": key, "op": op, "value": val})
+
+        # remove matched portions from query to leave free text
+        q_clean = token_re.sub("", q_orig)
+
+        # remaining free terms (split by whitespace, ignore empty)
+        free_terms = [t.lower() for t in re.split(r"\s+", q_clean.strip()) if t.strip()]
+
+        return filters, free_terms
+
+    @staticmethod
+    def apply_search_filter(
+        df: pl.DataFrame,
+        filters: list[dict[str, str]],
+        free_terms: list[str],
+    ) -> pl.DataFrame:
+        """Apply search filters to Polars DataFrame."""
+        if df.height == 0:
+            return df
+
+        filtered_df = df
+
+        # Map UI field names to DataFrame columns
+        col_map = {
+            "title": "Title",
+            "artist": "Artist",
+            "coverartist": "CoverArtist",
+            "version": "Version",
+            "disc": "Discnumber",
+            "track": "Track",
+            "date": "Date",
+            "comment": "Comment",
+            "special": "Special",
+            "file": "file",
+        }
+
+        for flt in filters:
+            field = flt["field"]
+            op = flt["op"]
+            val = flt["value"]
+            col_name = col_map.get(field, field)
+
+            if col_name not in filtered_df.columns and field != "version":
+                continue
+
+            # Special handling for version=latest
+            if field == "version" and val == "_latest_":
+                if "is_latest" in filtered_df.columns:
+                    filtered_df = filtered_df.filter(pl.col("is_latest"))
+                continue
+
+            col_expr = pl.col(col_name)
+
+            # Handle numeric version comparison
+            if col_name == "Version":
+                try:
+                    val_float = float(val)
+                    if op == ">":
+                        filtered_df = filtered_df.filter(col_expr > val_float)
+                    elif op == "<":
+                        filtered_df = filtered_df.filter(col_expr < val_float)
+                    elif op == ">=":
+                        filtered_df = filtered_df.filter(col_expr >= val_float)
+                    elif op == "<=":
+                        filtered_df = filtered_df.filter(col_expr <= val_float)
+                    elif op == "==":
+                        filtered_df = filtered_df.filter(col_expr == val_float)
+                    elif op in ("!=", "!~"):
+                        filtered_df = filtered_df.filter(col_expr != val_float)
+                except ValueError:
+                    pass
+                continue
+
+            # Numeric comparison - simplified to string comparison for now
+            # as most fields are Utf8 in schema
+            if op == ">":
+                filtered_df = filtered_df.filter(col_expr.str.to_lowercase() > val.lower())
+            elif op == "<":
+                filtered_df = filtered_df.filter(col_expr.str.to_lowercase() < val.lower())
+            elif op == ">=":
+                filtered_df = filtered_df.filter(col_expr.str.to_lowercase() >= val.lower())
+            elif op == "<=":
+                filtered_df = filtered_df.filter(col_expr.str.to_lowercase() <= val.lower())
+            elif op in ("=", "~"):  # Contains
+                filtered_df = filtered_df.filter(col_expr.str.to_lowercase().str.contains(re.escape(val.lower())))
+            elif op == "==":  # Exact
+                filtered_df = filtered_df.filter(col_expr.str.to_lowercase() == val.lower())
+            elif op in ("!=", "!~"):  # Not contains
+                filtered_df = filtered_df.filter(~col_expr.str.to_lowercase().str.contains(re.escape(val.lower())))
+
+        # Free terms
+        if free_terms:
+            search_cols = [pl.col(c) for c in col_map.values() if c in filtered_df.columns]
+            if search_cols:
+                concat_expr = pl.concat_str(search_cols, separator=" ").str.to_lowercase()
+                for term in free_terms:
+                    filtered_df = filtered_df.filter(concat_expr.str.contains(re.escape(term)))
+
+        return filtered_df
 
     @staticmethod
     def group_rules_by_logic(rules: list[dict[str, str]]) -> list[list[dict]]:
@@ -37,16 +162,15 @@ class RuleManager:
     @staticmethod
     def eval_rule_block(
         rule_block: list[dict[str, str]],
-        fv: dict[str, str],
-        latest_versions: dict | None = None,
+        fv: dict[str, str | bool],
     ) -> bool:
         """Evaluate a block of rules with AND logic (all rules in block must match)."""
         if not rule_block:
             return False
-        return all(RuleManager.eval_single_rule(rule, fv, latest_versions) for rule in rule_block)
+        return all(RuleManager.eval_single_rule(rule, fv) for rule in rule_block)
 
     @staticmethod
-    def eval_single_rule(rule: dict[str, str], fv: dict[str, str], latest_versions: dict | None = None) -> bool:
+    def eval_single_rule(rule: dict[str, str], fv: dict[str, str | bool]) -> bool:
         """Evaluate a single rule."""
         field = rule.get("if_field", "")
         op = rule.get("if_operator", "")
@@ -66,59 +190,21 @@ class RuleManager:
         if op == "is not empty":
             return actual != ""
         if op == "is latest version":
-            title = fv.get("Title", "")
-            artist = fv.get("Artist", "")
-            coverartist = fv.get("CoverArtist", "")
-            version = fv.get("Version", "0")
-            return RuleManager.is_latest_version_full(title, artist, coverartist, version, latest_versions)
+            return bool(fv.get("is_latest", False))
         if op == "is not latest version":
-            title = fv.get("Title", "")
-            artist = fv.get("Artist", "")
-            coverartist = fv.get("CoverArtist", "")
-            version = fv.get("Version", "0")
-            return not RuleManager.is_latest_version_full(title, artist, coverartist, version, latest_versions)
+            return not bool(fv.get("is_latest", False))
         return False
 
     @staticmethod
-    def is_latest_version(title: str, version: str, latest_versions: dict | None = None) -> bool:
-        """Check if the given title and version is the latest version."""
-        warnings.warn(
-            "is_latest_version is deprecated, use is_latest_version_full instead",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-
-        if not latest_versions:
-            return True
-
-        # Find the song key for this title (we need to search since we don't have artist/coverartist here)
-        for song_key, latest_version in latest_versions.items():
-            if title in song_key:  # Simple matching - could be improved
-                return latest_version == version
-        return True
-
-    @staticmethod
-    def is_latest_version_full(
-        title: str,
-        artist: str,
-        coverartist: str,
-        version: str,
-        latest_versions: dict | None = None,
-    ) -> bool:
-        """Check if the given title, artist, coverartist, and version is the latest version."""
-        if not latest_versions:
-            return True
-        song_key = f"{title}|{artist}|{coverartist}"
-        return latest_versions.get(song_key, version) == version
-
-    @staticmethod
-    def apply_template(template: str, fv: dict[str, str]) -> str:
+    def apply_template(template: str, fv: dict[str, str | bool]) -> str:
         """Apply template with field values."""
         if not template:
             return ""
         try:
             result = template
             for k, v in fv.items():
+                if k == "is_latest":
+                    continue
                 placeholder = "{" + k + "}"
                 if placeholder in result:
                     safe_value = str(v) if v is not None else ""
@@ -145,13 +231,13 @@ class RuleManager:
         return result
 
     @staticmethod
-    def apply_rules_list(rules: list[dict[str, str]], fv: dict[str, str], latest_versions: dict | None = None) -> str:
+    def apply_rules_list(rules: list[dict[str, str]], fv: dict[str, str | bool]) -> str:
         """Apply rules list to field values with AND/OR grouping."""
         if not rules:
             return ""
         rule_blocks = RuleManager.group_rules_by_logic(rules)
         for block in rule_blocks:
-            if RuleManager.eval_rule_block(block, fv, latest_versions):
+            if RuleManager.eval_rule_block(block, fv):
                 template = block[-1].get("then_template", "")
                 result = RuleManager.apply_template(template, fv)
                 if result.strip():
@@ -164,140 +250,62 @@ class RuleManager:
         return [rule.get_sort_rule() for rule in sort_rules]
 
     @staticmethod
-    def apply_multi_sort(sort_rules: list[SortRuleRow], file_data: dict) -> dict | list:
-        """Apply multiple sort rules to file data (positional tuple items).
-
-        This uses a comparator-based approach so each rule's ascending/descending
-        direction is respected at every level, not just the primary key.
-        """
-        warnings.warn(
-            "apply_multi_sort is deprecated, use apply_multi_sort_with_dict instead",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-
+    def apply_multi_sort_polars(sort_rules: list[SortRuleRow], df: pl.DataFrame) -> pl.DataFrame:
+        """Apply multiple sort rules to Polars DataFrame."""
         rules = RuleManager.get_sort_rules(sort_rules)
-
         if not rules:
-            return file_data
+            return df
 
-        # Map field name to positional index in the tuple (item[0] is original index)
-        field_names = [
-            "title",
-            "artist",
-            "coverartist",
-            "version",
-            "disc",
-            "track",
-            "date",
-            "comment",
-            "special",
-            "file",
-        ]
+        by = []
+        descending = []
+        temp_cols = []
 
-        def parse_version(v: object) -> tuple:
-            nums = re.findall(r"\d+", str(v))
-            nums = tuple(int(n) for n in nums) if nums else (0,)
-            return nums + (0,) * (3 - len(nums)) if len(nums) < 3 else nums
+        # We need to create temporary columns for sorting to handle types and case-insensitivity
+        df_sorted = df
 
-        def get_field_value_from_item(item: tuple[int, object], field: str):
-            _, *values = item
-            try:
-                idx = field_names.index(field)
-                raw = values[idx]
-            except ValueError:
-                raw = ""
+        for i, rule in enumerate(rules):
+            field = rule["field"]
+            order = rule["order"]
 
+            # Map UI field names to DataFrame columns
+            col_name = {
+                "title": "Title",
+                "artist": "Artist",
+                "coverartist": "CoverArtist",
+                "version": "Version",
+                "disc": "Discnumber",
+                "track": "Track",
+                "date": "Date",
+                "comment": "Comment",
+                "special": "Special",
+                "file": "file",
+            }.get(field, field)
+
+            # Check if column exists
+            if col_name not in df.columns:
+                continue
+
+            temp_col = f"_sort_{i}"
+            expr = pl.col(col_name)
+
+            # Handle numeric casting for specific columns
             if field in ["disc", "track", "special"]:
-                try:
-                    return int(raw) if raw else 0
-                except (ValueError, TypeError):
-                    return 0
-            if field == "version":
-                try:
-                    return parse_version(raw)
-                except Exception:
-                    return (0, 0, 0)
-            # Fallback to case-insensitive string compare
-            return str(raw).lower()
+                # Cast to Int64, fill null/error with 0
+                expr = expr.cast(pl.Int64, strict=False).fill_null(0)
+            elif field == "version":
+                # Already Float64
+                expr = expr.fill_null(0.0)
+            else:
+                # String sort - lowercase for case insensitive
+                expr = expr.str.to_lowercase()
 
-        def compare(a: tuple[int, object], b: tuple[int, object]) -> int:
-            for rule in rules:
-                field = rule["field"]
-                order = rule["order"]
+            df_sorted = df_sorted.with_columns(expr.alias(temp_col))
+            by.append(temp_col)
+            descending.append(order == "desc")
+            temp_cols.append(temp_col)
 
-                v1 = get_field_value_from_item(a, field)
-                v2 = get_field_value_from_item(b, field)
+        if by:
+            df_sorted = df_sorted.sort(by, descending=descending)
+            df_sorted = df_sorted.drop(temp_cols)
 
-                if v1 < v2:
-                    return -1 if order == "asc" else 1
-                if v1 > v2:
-                    return 1 if order == "asc" else -1
-            # Stable tie-breaker by original index
-            return a[0] - b[0]
-
-        # Sort the data
-        try:
-            sorted_data = sorted(file_data, key=cmp_to_key(compare))
-        except Exception as e:
-            print(f"Sorting error: {e}")
-            return file_data
-
-        return sorted_data
-
-    @staticmethod
-    def apply_multi_sort_with_dict(sort_rules: list[SortRuleRow], file_data: dict) -> dict:
-        """Apply multiple sort rules to file data stored as dictionaries.
-
-        Uses a comparator so each rule's direction is applied at its level.
-        """
-        rules = RuleManager.get_sort_rules(sort_rules)
-
-        if not rules:
-            return file_data
-
-        def parse_version(v: object) -> tuple:
-            nums = re.findall(r"\d+", str(v))
-            nums = tuple(int(n) for n in nums) if nums else (0,)
-            return nums + (0,) * (3 - len(nums)) if len(nums) < 3 else nums
-
-        def get_field_value(field_values: dict, field: str):
-            raw = field_values.get(field, "")
-
-            if field in ["disc", "track", "special"]:
-                try:
-                    return int(raw) if raw else 0
-                except (ValueError, TypeError):
-                    return 0
-            if field == "version":
-                try:
-                    return parse_version(raw)
-                except Exception:
-                    return (0, 0, 0)
-            return str(raw).lower()
-
-        def compare(a: tuple[int, dict], b: tuple[int, dict]) -> int:
-            _ia, va = a
-            _ib, vb = b
-            for rule in rules:
-                field = rule["field"]
-                order = rule["order"]
-
-                v1 = get_field_value(va, field)
-                v2 = get_field_value(vb, field)
-
-                if v1 < v2:
-                    return -1 if order == "asc" else 1
-                if v1 > v2:
-                    return 1 if order == "asc" else -1
-            # Stable tie-breaker by original index
-            return _ia - _ib
-
-        # Sort the data
-        try:
-            sorted_data = sorted(file_data, key=cmp_to_key(compare))
-        except Exception as e:
-            print(f"Sorting error: {e}")
-            return file_data
-
-        return sorted_data
+        return df_sorted
