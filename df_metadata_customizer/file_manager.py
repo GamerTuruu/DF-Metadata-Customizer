@@ -1,5 +1,6 @@
 """Utility file to manage file metadata and caching."""
 
+import json
 import re
 from pathlib import Path
 
@@ -301,3 +302,28 @@ class FileManager:
         stats["other_unique"] = other_df.select([MetadataFields.TITLE, MetadataFields.ARTIST]).n_unique()
 
         return stats
+
+    @staticmethod
+    def prepare_json_for_save(json_text: str) -> tuple[str, dict, str]:
+        """Parse JSON text and prepare it for saving to MP3."""
+        # Parse the JSON to validate it
+        edited_data = json.loads(json_text)
+
+        # Check if this is our wrapper format with _prefix
+        prefix_text = ""
+        json_data = edited_data
+
+        if "_prefix" in edited_data:
+            prefix_text = edited_data["_prefix"]
+            # Create a copy without the _prefix field for the actual JSON data
+            json_data = {k: v for k, v in edited_data.items() if k != "_prefix"}
+
+        if prefix_text:
+            # Remove any trailing space from prefix and concatenate directly
+            prefix_clean = prefix_text.rstrip()
+            full_comment = f"{prefix_clean}{json.dumps(json_data, ensure_ascii=False, separators=(',', ':'))}"
+        else:
+            # If no prefix, just use the JSON with compact formatting
+            full_comment = json.dumps(json_data, ensure_ascii=False, separators=(",", ":"))
+
+        return full_comment, json_data, prefix_text

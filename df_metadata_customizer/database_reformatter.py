@@ -3,7 +3,6 @@
 import contextlib
 import json
 import shutil
-import sys
 import threading
 import time
 import tkinter as tk
@@ -19,6 +18,7 @@ from df_metadata_customizer.dialogs import ProgressDialog, StatisticsDialog
 from df_metadata_customizer.file_manager import FileManager
 from df_metadata_customizer.image_utils import OptimizedImageCache
 from df_metadata_customizer.rule_manager import RuleManager
+from df_metadata_customizer.settings_manager import SettingsManager
 from df_metadata_customizer.song_metadata import MetadataFields
 from df_metadata_customizer.widgets import RuleRow, SortRuleRow
 
@@ -52,6 +52,7 @@ class DFApp(ctk.CTk):
         self.geometry("1350x820")
         self.minsize(1100, 700)
 
+        self.settings_manager = SettingsManager()
         self.file_manager = FileManager()
 
         # Data model
@@ -130,7 +131,7 @@ class DFApp(ctk.CTk):
         self.cover_loading_thread.start()
 
     def _cover_loading_worker(self) -> None:
-        """Worker thread for loading cover images - FIXED: Better queue management."""
+        """Worker thread for loading cover images."""
         while self.cover_loading_active:
             if self.cover_loading_queue:
                 path, callback = self.cover_loading_queue.pop(0)
@@ -1199,21 +1200,6 @@ class DFApp(ctk.CTk):
     # -------------------------
     # Settings persistence
     # -------------------------
-    @property
-    def settings_path(self) -> Path:
-        """Settings file path."""
-        try:
-            if getattr(sys, "frozen", False):
-                # Running as bundled executable
-                base = Path(sys.executable).parent
-            else:
-                # Running as script
-                base = Path(__file__).resolve().parent.parent
-            return base / "df_metadata_customizer_settings.json"
-        except Exception:
-            # Fallback to current working directory
-            return Path("df_metadata_customizer_settings.json")
-
     def save_settings(self) -> None:
         """Save UI settings to a JSON file."""
         try:
@@ -1252,21 +1238,14 @@ class DFApp(ctk.CTk):
             data["theme"] = str(self.current_theme)
 
             # write file
-            p = self.settings_path
-            with p.open("w", encoding="utf-8") as f:
-                json.dump(data, f, indent=2, ensure_ascii=False)
+            self.settings_manager.save_settings(data)
         except Exception as e:
             print(f"Error saving settings: {e}")
 
     def load_settings(self) -> None:
         """Load UI settings from JSON file and apply them where possible."""
-        p = self.settings_path
-        if not p.exists():
-            return
-        try:
-            with p.open("r", encoding="utf-8") as f:
-                data = json.load(f)
-        except Exception:
+        data = self.settings_manager.load_settings()
+        if not data:
             return
 
         # theme
@@ -1406,26 +1385,8 @@ class DFApp(ctk.CTk):
             return
 
         try:
-            # Parse the JSON to validate it
-            edited_data = json.loads(json_text)
-
-            # Check if this is our wrapper format with _prefix
-            prefix_text = ""
-            json_data = edited_data
-
-            if "_prefix" in edited_data:
-                prefix_text = edited_data["_prefix"]
-                # Create a copy without the _prefix field for the actual JSON data
-                json_data = {k: v for k, v in edited_data.items() if k != "_prefix"}
-
-            # FIXED: Check if prefix ends with space and handle accordingly
-            if prefix_text:
-                # Remove any trailing space from prefix and concatenate directly
-                prefix_clean = prefix_text.rstrip()
-                full_comment = f"{prefix_clean}{json.dumps(json_data, ensure_ascii=False, separators=(',', ':'))}"
-            else:
-                # If no prefix, just use the JSON with compact formatting
-                full_comment = json.dumps(json_data, ensure_ascii=False, separators=(",", ":"))
+            # Use FileManager to prepare JSON
+            full_comment, json_data, prefix_text = FileManager.prepare_json_for_save(json_text)
 
         except json.JSONDecodeError as e:
             messagebox.showerror("Invalid JSON", f"The JSON is invalid:\n{e!s}")
@@ -2177,25 +2138,6 @@ class DFApp(ctk.CTk):
     # -------------------------
     # Preset save/load - UPDATED: Individual files in presets folder
     # -------------------------
-    @property
-    def presets_folder(self) -> Path:
-        """Get the presets folder path."""
-        try:
-            if getattr(sys, "frozen", False):
-                # Running as bundled executable
-                base = Path(sys.executable).parent
-            else:
-                # Running as script
-                base = Path(__file__).resolve().parent.parent
-
-            presets_folder = base / "presets"
-            presets_folder.mkdir(exist_ok=True)  # Create if doesn't exist
-        except Exception:
-            # Fallback to current working directory
-            presets_folder = Path("presets")
-            presets_folder.mkdir(exist_ok=True)
-        return presets_folder
-
     def save_preset(self) -> None:
         """Save current rules as a preset in individual file in presets folder."""
         name = simpledialog.askstring("Preset name", "Preset name:")
@@ -2215,9 +2157,7 @@ class DFApp(ctk.CTk):
 
         try:
             # Save as individual file in presets folder
-            preset_file = self.presets_folder / f"{name}.json"
-            with preset_file.open("w", encoding="utf-8") as f:
-                json.dump(preset, f, indent=2, ensure_ascii=False)
+            self.settings_manager.save_preset(name, preset)
 
             # update combobox list
             self._reload_presets()
@@ -2230,20 +2170,7 @@ class DFApp(ctk.CTk):
     def _reload_presets(self) -> None:
         """Reload presets from individual files in presets folder."""
         try:
-            presets_folder = self.presets_folder
-            vals = []
-
-            # Get all .json files in presets folder
-            for preset_file in presets_folder.glob("*.json"):
-                try:
-                    # Use filename without extension as preset name
-                    preset_name = preset_file.stem
-                    vals.append(preset_name)
-                except Exception:
-                    continue
-
-            # Sort alphabetically
-            vals.sort()
+            vals = self.settings_manager.list_presets()
             self.preset_combo["values"] = vals
         except Exception as e:
             print(f"Error loading presets: {e}")
@@ -2261,21 +2188,18 @@ class DFApp(ctk.CTk):
         self.update_idletasks()
 
         try:
-            preset_file = self.presets_folder / f"{name}.json"
-
-            if preset_file.exists():
-                confirm = messagebox.askyesno("Delete", f"Delete preset '{name}'?")
-                if confirm:
-                    preset_file.unlink()  # Delete the file
-                    self._reload_presets()
-                    self.preset_var.set("")  # Clear current selection
-                    self.lbl_file_info.configure(text=original_text)
-                    messagebox.showinfo("Deleted", f"Preset '{name}' deleted successfully!")
-                else:
-                    self.lbl_file_info.configure(text=original_text)
+            confirm = messagebox.askyesno("Delete", f"Delete preset '{name}'?")
+            if confirm:
+                self.settings_manager.delete_preset(name)
+                self._reload_presets()
+                self.preset_var.set("")  # Clear current selection
+                self.lbl_file_info.configure(text=original_text)
+                messagebox.showinfo("Deleted", f"Preset '{name}' deleted successfully!")
             else:
                 self.lbl_file_info.configure(text=original_text)
-                messagebox.showwarning("Not Found", f"Preset '{name}' not found")
+        except FileNotFoundError:
+            self.lbl_file_info.configure(text=original_text)
+            messagebox.showwarning("Not Found", f"Preset '{name}' not found")
         except Exception as e:
             self.lbl_file_info.configure(text=original_text)
             messagebox.showerror("Error", f"Could not delete preset: {e}")
@@ -2292,15 +2216,12 @@ class DFApp(ctk.CTk):
         self.update_idletasks()
 
         try:
-            preset_file = self.presets_folder / f"{name}.json"
-
-            if not preset_file.exists():
+            try:
+                preset = self.settings_manager.load_preset(name)
+            except FileNotFoundError:
                 self.lbl_file_info.configure(text=original_text)
                 messagebox.showwarning("Not Found", f"Preset file '{name}.json' not found")
                 return
-
-            with preset_file.open("r", encoding="utf-8") as f:
-                preset = json.load(f)
 
             if not preset:
                 self.lbl_file_info.configure(text=original_text)
