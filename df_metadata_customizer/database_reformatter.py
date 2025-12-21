@@ -738,24 +738,35 @@ class DFApp(ctk.CTk):
         self.lbl_file_info.configure(text=f"Loading {len(self.mp3_files)} files...")
         self.update_idletasks()
 
-        def load_file_data_batch() -> bool:
-            """Load file data in batches for better performance."""
+        def update_loading_progress(current: int, total: int) -> None:
+            if self.progress_dialog:
+                self.progress_dialog.update_progress(
+                    current,
+                    total,
+                    f"Loading metadata... {current}/{total}",
+                )
+
+        def load_file_data_worker() -> None:
+            """Load file data in background thread."""
             total = len(self.mp3_files)
 
             # Pre-load all file data first
             for i, p in enumerate(self.mp3_files):
+                # Check for cancellation
+                if self.progress_dialog and self.progress_dialog.cancelled:
+                    self.after(0, lambda: on_data_loaded(success=False))
+                    return
+
                 self.file_manager.get_file_data_with_prefix(p)
 
                 # Update progress every 10 files
-                if (
-                    i % 10 == 0
-                    and self.progress_dialog
-                    and not self.progress_dialog.update_progress(i, total, f"Loading metadata... {i}/{total}")
-                ):
-                    return False
-            return True
+                if i % 10 == 0:
+                    self.after(0, lambda idx=i: update_loading_progress(idx, total))
 
-        def on_data_loaded(success: bool) -> None:
+            # Done
+            self.after(0, lambda: on_data_loaded(success=True))
+
+        def on_data_loaded(*, success: bool) -> None:
             if not success or (self.progress_dialog and self.progress_dialog.cancelled):
                 self.lbl_file_info.configure(text="Loading cancelled")
                 self.btn_select_folder.configure(state="normal")
@@ -826,7 +837,7 @@ class DFApp(ctk.CTk):
 
         # Start background loading
         threading.Thread(
-            target=lambda: self.after(0, lambda: on_data_loaded(load_file_data_batch())),
+            target=load_file_data_worker,
             daemon=True,
         ).start()
 
@@ -1719,28 +1730,34 @@ class DFApp(ctk.CTk):
         self.progress_dialog = ProgressDialog(self, "Loading Folder")
         self.progress_dialog.update_progress(0, 100, "Finding MP3 files...")
 
+        def update_scan_progress(count: int) -> None:
+            if self.progress_dialog:
+                self.progress_dialog.update_progress(count, count, f"Found {count} files...")
+
         # Scan in background thread
-        def scan_folder() -> list[str] | None:
+        def scan_folder() -> None:
             try:
                 files = []
                 count = 0
 
                 # Use pathlib for faster file discovery
                 for p in Path(folder).glob("**/*.mp3"):
+                    # Check for cancellation
+                    if self.progress_dialog and self.progress_dialog.cancelled:
+                        self.after(0, lambda: on_scan_complete(None))
+                        return
+
                     if p.is_file() and p.suffix.lower() == ".mp3":
                         files.append(str(p))
                         count += 1
                         # Update progress every 10 files
-                        if (
-                            count % 10 == 0
-                            and self.progress_dialog
-                            and not self.progress_dialog.update_progress(count, count, f"Found {count} files...")
-                        ):
-                            return None
+                        if count % 10 == 0:
+                            self.after(0, lambda c=count: update_scan_progress(c))
+
+                self.after(0, lambda: on_scan_complete(files))
             except Exception as e:
                 print(f"Error scanning folder: {e}")
-                return []
-            return files
+                self.after(0, lambda: on_scan_complete([]))
 
         def on_scan_complete(files: list[str] | None) -> None:
             if files is None:  # Cancelled
@@ -1773,7 +1790,7 @@ class DFApp(ctk.CTk):
             self.populate_tree_fast()
 
         # Start background scan
-        threading.Thread(target=lambda: self.after(0, lambda: on_scan_complete(scan_folder())), daemon=True).start()
+        threading.Thread(target=scan_folder, daemon=True).start()
 
     def refresh_tree(self) -> None:
         """Refresh tree with search filtering and multi-sort. Supports structured filters including version=latest."""
@@ -2054,6 +2071,11 @@ class DFApp(ctk.CTk):
 
         paths = [self.mp3_files[int(iid)] for iid in sel]
 
+        # Collect rules on main thread BEFORE starting background thread
+        title_rules = self.collect_rules_for_tab("title")
+        artist_rules = self.collect_rules_for_tab("artist")
+        album_rules = self.collect_rules_for_tab("album")
+
         self.operation_in_progress = True
 
         # Show immediate feedback
@@ -2064,7 +2086,11 @@ class DFApp(ctk.CTk):
         self.progress_dialog = ProgressDialog(self, "Applying Metadata")
         self.progress_dialog.update_progress(0, len(paths), "Starting...")
 
-        def apply_in_background() -> tuple[int, list[str]]:
+        def update_apply_progress(current: int, total: int, text: str) -> None:
+            if self.progress_dialog:
+                self.progress_dialog.update_progress(current, total, text)
+
+        def apply_in_background() -> None:
             """Apply metadata changes in background thread."""
             success_count = 0
             total = len(paths)
@@ -2081,15 +2107,15 @@ class DFApp(ctk.CTk):
                         continue
 
                     new_title = RuleManager.apply_rules_list(
-                        self.collect_rules_for_tab("title"),
+                        title_rules,
                         metadata,
                     )
                     new_artist = RuleManager.apply_rules_list(
-                        self.collect_rules_for_tab("artist"),
+                        artist_rules,
                         metadata,
                     )
                     new_album = RuleManager.apply_rules_list(
-                        self.collect_rules_for_tab("album"),
+                        album_rules,
                         metadata,
                     )
 
@@ -2116,14 +2142,17 @@ class DFApp(ctk.CTk):
                     errors.append(f"Error with {Path(p).name}: {e!s}")
 
                 # Update progress - FORCE UPDATE
-                if self.progress_dialog:
-                    self.progress_dialog.update_progress(
-                        i + 1,
+                self.after(
+                    0,
+                    lambda idx=i, path=p: update_apply_progress(
+                        idx + 1,
                         total,
-                        f"Applying to {i + 1}/{total}: {Path(p).name}",
-                    )
+                        f"Applying to {idx + 1}/{total}: {Path(path).name}",
+                    ),
+                )
 
-            return success_count, errors
+            # Done
+            self.after(0, lambda: on_apply_complete((success_count, errors)))
 
         def on_apply_complete(result: tuple[int, list[str]]) -> None:
             """Handle completion of apply operation."""
@@ -2150,7 +2179,7 @@ class DFApp(ctk.CTk):
 
         # Start background application
         threading.Thread(
-            target=lambda: self.after(0, lambda: on_apply_complete(apply_in_background())),
+            target=apply_in_background,
             daemon=True,
         ).start()
 
