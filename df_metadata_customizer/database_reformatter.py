@@ -348,7 +348,7 @@ class DFApp(ctk.CTk):
         self.tabview.grid(row=1, column=0, sticky="nsew", padx=8, pady=(0, 6))  # Reduced top padding
 
         # We'll keep rule containers per tab in a dict
-        self.rule_containers = {}
+        self.rule_containers: dict[str, ctk.CTkFrame] = {}
         for name in ("Title", "Artist", "Album"):
             tab = self.tabview.add(name)
             tab.grid_columnconfigure(0, weight=1)
@@ -1557,6 +1557,39 @@ class DFApp(ctk.CTk):
 
         threading.Thread(target=lambda: self.after(0, lambda: on_rename_complete(rename_file())), daemon=True).start()
 
+    def move_rule(self, widget: RuleRow, direction: int) -> None:
+        """Move a rule up or down."""
+        container = widget.master
+
+        # Use pack_slaves to get the current visual order
+        slaves = container.pack_slaves()
+        children = [w for w in slaves if isinstance(w, RuleRow)]
+
+        try:
+            idx = children.index(widget)
+        except ValueError:
+            return
+
+        new_idx = idx + direction
+        if new_idx < 0 or new_idx >= len(children):
+            return
+
+        # Swap in list
+        children.pop(idx)
+        children.insert(new_idx, widget)
+
+        # Repack all RuleRows
+        for child in children:
+            child.pack_forget()
+
+        for i, child in enumerate(children):
+            child.pack(fill="x", padx=6, pady=3)
+            # Update visual state
+            child.set_first(is_first=i == 0)
+            child.set_button_states(is_top=i == 0, is_bottom=i == len(children) - 1)
+
+        self.force_preview_update()
+
     def delete_rule(self, widget: RuleRow) -> None:
         """Delete a rule from its container - UPDATED: With button state update."""
         container = widget.master
@@ -1567,6 +1600,9 @@ class DFApp(ctk.CTk):
 
         # Remove the widget
         widget.destroy()
+
+        # Update button states for remaining rules
+        self.after(10, lambda: self.update_rule_button_states(container))
 
         # Update button states after deletion (rules are now below limit)
         self.update_rule_tab_buttons()
@@ -1613,13 +1649,6 @@ class DFApp(ctk.CTk):
                         else:
                             add_button.configure(state="normal")
 
-    def collect_rules_for(self, tab: str) -> list[dict[str, str]]:
-        """Return list of rule dicts for tab name (title/artist/album)."""
-        container = self.rule_containers.get(tab)
-        if not container:
-            return []
-        return [w.get_rule() for w in container.winfo_children() if isinstance(w, RuleRow)]
-
     def add_rule(self, container: ctk.CTkFrame) -> None:
         """Add a rule row to the specified container."""
         # Count current rules to determine if this is the first one
@@ -1629,6 +1658,7 @@ class DFApp(ctk.CTk):
         row = RuleRow(
             container,
             self.rule_ops,
+            move_callback=self.move_rule,
             delete_callback=self.delete_rule,
             is_first=is_first,
         )
@@ -1652,6 +1682,9 @@ class DFApp(ctk.CTk):
         row.logic_var.trace("w", update_callback)  # Add logic change listener
         row.value_entry.bind("<KeyRelease>", lambda _e: self.force_preview_update())
         row.template_entry.bind("<KeyRelease>", lambda _e: self.force_preview_update())
+
+        # Update button states for all rules in this container
+        self.update_rule_button_states(container)
 
         # Update button states after adding
         self.update_rule_tab_buttons()
@@ -1981,7 +2014,8 @@ class DFApp(ctk.CTk):
         if not container:
             return []
         rules = []
-        children = [w for w in container.winfo_children() if isinstance(w, RuleRow)]
+        slaves = container.pack_slaves()
+        children = [w for w in slaves if isinstance(w, RuleRow)]
 
         for i, widget in enumerate(children):
             rule_data = widget.get_rule()
@@ -2243,6 +2277,7 @@ class DFApp(ctk.CTk):
                     row = RuleRow(
                         cont,
                         self.rule_ops,
+                        move_callback=self.move_rule,
                         delete_callback=self.delete_rule,
                         is_first=is_first,
                     )
@@ -2255,9 +2290,11 @@ class DFApp(ctk.CTk):
                     if not is_first:
                         row.logic_var.set(r.get("logic", "AND"))
 
+                # Update arrow states
+                self.update_rule_button_states(cont)
+
             # Update button states after loading preset
             self.update_rule_tab_buttons()
-
             self.lbl_file_info.configure(text=f"Loaded preset '{name}'")
             self.update_preview()
 
@@ -2280,9 +2317,12 @@ class DFApp(ctk.CTk):
 
     def update_rule_button_states(self, container: ctk.CTkFrame) -> None:
         """Update button states for rules in a container."""
-        children = [w for w in container.winfo_children() if isinstance(w, RuleRow)]
+        slaves = container.pack_slaves()
+        children = [w for w in slaves if isinstance(w, RuleRow)]
+
         for i, child in enumerate(children):
-            child.set_button_states(i == 0, i == len(children) - 1)
+            child.set_first(is_first=i == 0)
+            child.set_button_states(is_top=i == 0, is_bottom=i == len(children) - 1)
 
     def run(self) -> None:
         """Run the main application loop."""
