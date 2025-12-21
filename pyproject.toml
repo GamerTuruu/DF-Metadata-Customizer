@@ -22,3 +22,12 @@ include = ["df_metadata_customizer"]
 [tool.ruff]
 line-length = 120
 target-version = "py310"
+select = [
+    "ALL",
+]
+ignore = [
+    "PLR0915", # too-many-statements
+    "C901",    # too-complex
+    "PLR0911", # too-many-return-statements
+    "PLR0912", # too-many-branches
+]

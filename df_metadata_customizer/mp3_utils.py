@@ -3,10 +3,10 @@ import json
 import os
 import platform
 import re
-from functools import lru_cache
-from io import BytesIO
 import shutil
 import subprocess
+from functools import lru_cache
+from io import BytesIO
 
 from mutagen.id3 import APIC, COMM, ID3, TALB, TDRC, TIT2, TPE1, TPOS, TRCK, ID3NoHeaderError
 from mutagen.mp3 import MP3
@@ -16,17 +16,17 @@ JSON_FIND_RE = re.compile(r"\{.*\}", re.DOTALL)
 
 
 @lru_cache(maxsize=1000)
-def extract_json_from_mp3_cached(path):
-    """Cached version of extract_json_from_mp3"""
+def extract_json_from_mp3_cached(path: str) -> tuple[dict, str] | None:
+    """Cache version of extract_json_from_mp3."""
     return extract_json_from_mp3(path)
 
 
-def extract_json_from_mp3(path):
-    """Return (parsed JSON dict, prefix_text) or (None, None)."""
+def extract_json_from_mp3(path: str) -> tuple[dict, str] | None:
+    """Return (parsed JSON dict, prefix_text) or None."""
     try:
         audio = MP3(path)
         if not audio.tags:
-            return None, None
+            return None
         # Gather COMM frames
         comms = [v for k, v in audio.tags.items() if k.startswith("COMM")]
         for c in comms:
@@ -44,20 +44,18 @@ def extract_json_from_mp3(path):
 
                 try:
                     json_data = json.loads(raw_json)
-                    return json_data, prefix_text
                 except Exception:
-                    # try sanitize
                     try:
                         json_data = json.loads(raw_json.replace("'", '"'))
-                        return json_data, prefix_text
                     except Exception:
                         continue
-        return None, None
+                return json_data, prefix_text
     except Exception:
-        return None, None
+        return None
+    return None
 
 
-def write_json_to_mp3(path, json_data):
+def write_json_to_mp3(path: str, json_data: dict | str) -> bool:
     """Write JSON data back to MP3 comment tag."""
     try:
         # Try to load existing tags or create new ones
@@ -71,12 +69,7 @@ def write_json_to_mp3(path, json_data):
 
         # Convert JSON to string and create new COMM frame
         # FIXED: Don't double-encode the JSON, just use the string directly
-        if isinstance(json_data, str):
-            # If it's already a string, use it directly
-            json_str = json_data
-        else:
-            # If it's a dict, convert to JSON string
-            json_str = json.dumps(json_data, ensure_ascii=False)
+        json_str = json_data if isinstance(json_data, str) else json.dumps(json_data, ensure_ascii=False)
 
         # FIXED: Create COMM frame with proper encoding and description
         tags.add(
@@ -90,13 +83,13 @@ def write_json_to_mp3(path, json_data):
 
         # Save the tags
         tags.save(path)
-        return True
     except Exception as e:
         print(f"Error writing JSON to MP3: {e}")
         return False
+    return True
 
 
-def read_cover_from_mp3(path):
+def read_cover_from_mp3(path: str) -> tuple[Image.Image | None, str | None]:
     """Return (PIL Image, mime) or (None, None)."""
     try:
         tags = ID3(path)
@@ -108,21 +101,21 @@ def read_cover_from_mp3(path):
     ap = apics[0]
     try:
         img = Image.open(BytesIO(ap.data))
-        return img, ap.mime
     except Exception:
         return None, None
+    return img, ap.mime
 
 
 def write_id3_tags(
-    path,
-    title=None,
-    artist=None,
-    album=None,
-    track=None,
-    disc=None,
-    date=None,
-    cover_bytes=None,
-    cover_mime="image/jpeg",
+    path: str,
+    title: str | None = None,
+    artist: str | None = None,
+    album: str | None = None,
+    track: str | None = None,
+    disc: str | None = None,
+    date: str | None = None,
+    cover_bytes: bytes | None = None,
+    cover_mime: str = "image/jpeg",
 ):
     """Write provided tags to file (only provided ones). Returns True/False."""
     try:
@@ -157,8 +150,8 @@ def write_id3_tags(
         return False
     return True
 
-def play_song(file_path) -> bool:
-    """Play a song using the system's default audio player - IMPROVED for Ubuntu"""
+def play_song(file_path: str) -> bool:
+    """Play a song using the system's default audio player."""
     if platform.system() == "Windows":
         os.startfile(file_path)
     elif platform.system() == "Darwin":  # macOS
