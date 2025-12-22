@@ -1,6 +1,7 @@
 """Manages application settings and presets persistence."""
 
 import json
+import shutil
 import sys
 from pathlib import Path
 from typing import Any
@@ -12,6 +13,22 @@ class SettingsManager:
     def __init__(self, app_name: str = "df_metadata_customizer") -> None:
         """Initialize SettingsManager with application name."""
         self.app_name = app_name
+        self._extract_bundled()
+
+    def _extract_bundled(self) -> None:
+        """Ensure bundled presets are copied to the external presets folder."""
+        if not getattr(sys, "frozen", False):
+            return
+
+        # Internal bundled path
+        bundle_dir = Path(getattr(sys, "_MEIPASS", ""))
+        bundled_presets = bundle_dir / "presets"
+
+        # External user-facing path
+        target_presets = self.base_dir / "presets"
+
+        if bundled_presets.exists() and not target_presets.exists():
+            shutil.copytree(bundled_presets, target_presets)
 
     @property
     def base_dir(self) -> Path:
