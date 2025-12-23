@@ -281,6 +281,6 @@ class RuleManager:
                     descending.append(is_desc)
 
         if by_cols:
-            return df.with_columns(sort_exprs).sort(by_cols, descending=descending).drop(by_cols)
+            return df.with_columns(sort_exprs).sort(by_cols, descending=descending, maintain_order=True).drop(by_cols)
 
         return df
