@@ -1,0 +1,83 @@
+name: Build Executables
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version'
+        required: true
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+        include:
+          - os: windows-latest
+            os_name: Windows
+          - os: ubuntu-latest
+            os_name: Linux
+          - os: macos-latest
+            os_name: macOS
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          persist-credentials: true
+      
+      - name: Set up UV
+        uses: astral-sh/setup-uv@681c641aba71e4a1c380be3ab5e12ad51f415867 # v7.1.6
+        with:
+          activate-environment: true
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Set version
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "VERSION=${{ github.event.inputs.version }}" >> $GITHUB_ENV
+          else
+            echo "VERSION=${{ github.ref_name }}" >> $GITHUB_ENV
+          fi
+
+      - name: Build executable
+        run: pyinstaller
+          --onedir
+          --name "DFMetadataCustomizer"
+          --contents-directory "lib"
+          --add-data "presets:presets"
+          --optimize 2
+          --noconsole
+          --noconfirm
+          --clean
+          "df_metadata_customizer/__main__.py"
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        if: github.ref_type != 'tag'
+        with:
+          name: DFMetadataCustomizer-${{ env.VERSION }}-${{ matrix.os_name }}
+          path: dist/DFMetadataCustomizer/*
+      
+      - name: Zip artifacts
+        if: github.ref_type == 'tag'
+        shell: bash
+        run: |
+          cd dist/DFMetadataCustomizer
+          7z a ../DFMetadataCustomizer-${{ env.VERSION }}-${{ matrix.os_name }}.zip .
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2.5.0
+        if: github.ref_type == 'tag'
+        with:
+          draft: true
+          tag_name: ${{ env.VERSION }}
+          files: dist/DFMetadataCustomizer-${{ env.VERSION }}-${{ matrix.os_name }}.zip
