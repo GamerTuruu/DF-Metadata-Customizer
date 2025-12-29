@@ -137,7 +137,7 @@ class DFApp(ctk.CTk):
                 path, callback = self.cover_loading_queue.pop(0)
                 try:
                     # Load cover image
-                    img, _ = mp3_utils.read_cover_from_mp3(path)
+                    img = mp3_utils.read_cover_from_mp3(path)
                     if img:
                         # Pre-optimize the image for display
                         optimized_img = image_utils.optimize_image_for_display(img)

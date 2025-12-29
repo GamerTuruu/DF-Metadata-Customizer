@@ -24,7 +24,7 @@ def extract_json_from_mp3_cached(path: str) -> tuple[dict, str] | None:
 def extract_json_from_mp3(path: str) -> tuple[dict, str] | None:
     """Return (parsed JSON dict, prefix_text) or None."""
     try:
-        tags = TinyTag.get(path, image=False)
+        tags = TinyTag.get(path, tags=True, image=False)
 
         # tag.comment and tag.other['comment'] may contain JSON texts
         texts = tags.other.get("comment") or []  # All entries in other are lists
@@ -81,21 +81,18 @@ def write_json_to_mp3(path: str, json_data: dict | str) -> bool:
     return True
 
 
-def read_cover_from_mp3(path: str) -> tuple[Image.Image | None, str | None]:
+def read_cover_from_mp3(path: str) -> Image.Image | None:
     """Return (PIL Image, mime) or (None, None)."""
     try:
-        tags = ID3(path)
-    except Exception:
-        return None, None
-    apics = tags.getall("APIC")
-    if not apics:
-        return None, None
-    ap = apics[0]
-    try:
-        img = Image.open(BytesIO(ap.data))
-    except Exception:
-        return None, None
-    return img, ap.mime
+        tags = TinyTag.get(path, tags=True, image=True)
+        img = tags.images.any
+        if img:
+            return Image.open(BytesIO(img.data))
+
+    except Exception as e:
+        print("Error reading cover image:", e)
+        return None
+    return None
 
 
 def write_id3_tags(
