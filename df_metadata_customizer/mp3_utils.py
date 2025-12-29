@@ -1,9 +1,9 @@
 """Utilities for reading/writing MP3 ID3 tags and embedded JSON metadata."""
 
+import contextlib
 import json
 import os
 import platform
-import re
 import shutil
 import subprocess
 from functools import lru_cache
@@ -13,8 +13,6 @@ from tkinter import messagebox
 from mutagen.id3 import APIC, COMM, ID3, TALB, TDRC, TIT2, TPE1, TPOS, TRCK, ID3NoHeaderError
 from PIL import Image
 from tinytag import TinyTag
-
-JSON_FIND_RE = re.compile(r"\{.*\}", re.DOTALL)
 
 
 @lru_cache(maxsize=1000)
@@ -26,21 +24,24 @@ def extract_json_from_mp3_cached(path: str) -> tuple[dict, str] | None:
 def extract_json_from_mp3(path: str) -> tuple[dict, str] | None:
     """Return (parsed JSON dict, prefix_text) or None."""
     try:
-        tag = TinyTag.get(path)
-        text = tag.other.get("comment", "")
-        print(text)
-        if not text:
+        tags = TinyTag.get(path, image=False)
+
+        # tag.comment and tag.other['comment'] may contain JSON texts
+        texts = tags.other.get("comment") or []  # All entries in other are lists
+        if tags.comment:
+            texts.append(tags.comment)
+
+        if not texts:
             return None
 
-        if isinstance(text, list):
-            text = "".join(text)
-
-        text = text.strip()
-
-        comm_data = json.loads(text)
+        # Combine jsons
+        comm_data = {}
+        for text in texts:
+            with contextlib.suppress(json.JSONDecodeError):
+                comm_data.update(json.loads(text))
 
     except Exception as e:
-        print(f"Error parsing JSON from MP3 comment: {e}")
+        print(f"Error parsing JSON from file comment: {e}")
         return None
 
     return comm_data, ""
