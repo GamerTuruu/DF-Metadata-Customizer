@@ -40,3 +40,4 @@ Thumbs.db
 user_presets.json
 df_metadata_customizer_settings.json
 temp/
+!DFMetadataCustomizer.spec

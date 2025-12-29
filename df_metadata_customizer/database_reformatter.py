@@ -944,13 +944,13 @@ class DFApp(ctk.CTk):
         try:
             if clear_image:
                 # Clear image reference first using a safer approach
-                self.cover_display.configure(image="")
+                self.cover_display.configure(image=None)
                 self.current_cover_image = None
             self.cover_display.configure(text=text)
         except Exception:
             # If we get an error, try a more aggressive approach
             try:
-                self.cover_display.configure(image="", text=text)
+                self.cover_display.configure(image=None, text=text)
                 self.current_cover_image = None
             except Exception:
                 # Final fallback - just set text
@@ -1041,9 +1041,12 @@ class DFApp(ctk.CTk):
 
             # Always load cover after theme change
             self._safe_cover_display_update("Loading cover...")
+            print("Testing")
             if self.current_index is not None:
+                print("Testing2")
                 self.load_current_cover()
             else:
+                print("Testing3")
                 self._safe_cover_display_update("No cover", clear_image=True)
         except Exception as e:
             print(f"Error toggling theme: {e}")
