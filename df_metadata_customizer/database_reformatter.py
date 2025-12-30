@@ -70,7 +70,6 @@ class DFApp(ctk.CTk):
         self.theme_icon_cache = {}  # Cache for theme icons
 
         # Cover image settings - OPTIMIZED
-        self.show_covers = True  # Covers are always ON
         self.cover_cache = OptimizedImageCache(max_size=50)  # Optimized cache
         self.current_cover_image = None  # Track current cover to prevent garbage collection
         self.cover_loading_queue = []  # Queue for cover loading requests
@@ -1238,7 +1237,6 @@ class DFApp(ctk.CTk):
                 data["sort_rules"] = []
 
             # other UI prefs
-            data["show_covers"] = bool(self.show_covers)
             data["theme"] = str(self.current_theme)
 
             # write file
@@ -1253,7 +1251,7 @@ class DFApp(ctk.CTk):
             return
 
         # theme
-        try:
+        with contextlib.suppress(Exception):
             th = data.get("theme")
             if th:
                 self.current_theme = th
@@ -1262,34 +1260,21 @@ class DFApp(ctk.CTk):
                 self._update_treeview_style()
                 self._update_json_text_style()
                 self._update_output_preview_style()
-        except Exception:
-            pass
 
-        # show covers - REMOVED: No longer toggleable, always True
-        self.show_covers = True
-
-        # column order & widths
-        try:
+            # column order & widths
             col_order = data.get("column_order")
             col_widths = data.get("column_widths", {})
             if col_order and isinstance(col_order, list):
                 # apply order
                 DFApp.COLUMN_ORDER = col_order
                 # rebuild columns to new order
-                with contextlib.suppress(Exception):
-                    self.rebuild_tree_columns()
+                self.rebuild_tree_columns()
                 # apply widths
-                try:
-                    for c, w in (col_widths or {}).items():
-                        with contextlib.suppress(Exception):
-                            self.tree.column(c, width=int(w))
-                except Exception:
-                    pass
-        except Exception:
-            pass
+                for c, w in (col_widths or {}).items():
+                    with contextlib.suppress(Exception):
+                        self.tree.column(c, width=int(w))
 
-        # sort rules
-        try:
+            # sort rules
             sort_rules = data.get("sort_rules") or []
             if isinstance(sort_rules, list) and sort_rules:
                 # ensure at least one rule exists
@@ -1297,29 +1282,21 @@ class DFApp(ctk.CTk):
                 # there is always at least one sort rule created in UI
                 # set values for existing rules and add extras if needed
                 for i, r in enumerate(sort_rules):
-                    if i < len(self.sort_rules):
-                        try:
+                    with contextlib.suppress(Exception):
+                        if i < len(self.sort_rules):
                             self.sort_rules[i].field_var.set(r.get("field", MetadataFields.get_ui_keys()[0]))
                             self.sort_rules[i].order_var.set(r.get("order", "asc"))
-                        except Exception:
-                            pass
-                    else:
-                        try:
-                            self.add_sort_rule(is_first=False)
-                            self.sort_rules[-1].field_var.set(r.get("field", MetadataFields.get_ui_keys()[0]))
-                            self.sort_rules[-1].order_var.set(r.get("order", "asc"))
-                        except Exception:
-                            pass
-        except Exception:
-            pass
+                        else:
+                                self.add_sort_rule(is_first=False)
+                                self.sort_rules[-1].field_var.set(r.get("field", MetadataFields.get_ui_keys()[0]))
+                                self.sort_rules[-1].order_var.set(r.get("order", "asc"))
 
-        # sash ratio - apply after window is laid out
-        try:
+            # sash ratio - apply after window is laid out
             sash_ratio = data.get("sash_ratio")
             if sash_ratio is not None:
 
                 def apply_ratio(attempts: int = 0) -> None:
-                    try:
+                    with contextlib.suppress(Exception):
                         total = self.paned.winfo_width()
                         if total and attempts < 10:
                             pos = int(total * float(sash_ratio))
@@ -1331,28 +1308,20 @@ class DFApp(ctk.CTk):
                         # try again shortly if not yet sized
                         elif attempts < 10:
                             self.after(150, lambda: apply_ratio(attempts + 1))
-                    except Exception:
-                        pass
 
                 self.after(200, lambda: apply_ratio(0))
-        except Exception:
-            pass
 
-        # Always load cover if available
-        try:
+            # Always load cover if available
             if self.current_index is not None:
                 self.load_current_cover()
             else:
                 self._safe_cover_display_update("No cover", clear_image=True)
-        except Exception:
-            pass
 
     def _on_close(self) -> None:
-        try:
+        with contextlib.suppress(Exception):
             self.cover_loading_active = False  # Stop the cover loading thread
             self.save_settings()
-        except Exception:
-            pass
+
         try:
             self.destroy()
         except Exception:
