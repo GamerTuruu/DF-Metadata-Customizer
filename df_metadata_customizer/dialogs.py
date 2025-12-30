@@ -96,28 +96,6 @@ class StatisticsDialog(ctk.CTkToplevel):
         # Make it transient first
         self.transient(parent)
 
-        # Position near parent window - FIXED: Calculate after window is created
-        self.update_idletasks()  # Get proper window dimensions
-
-        parent_x = parent.winfo_rootx()
-        parent_y = parent.winfo_rooty()
-        parent_width = parent.winfo_width()
-        _parent_height = parent.winfo_height()
-
-        # Position to the right of main window
-        x = parent_x + parent_width + 20
-        y = parent_y + 50
-
-        # Make sure it's on screen
-        screen_width = self.winfo_screenwidth()
-        if x + 320 > screen_width:
-            x = parent_x + 100  # Position to the left if not enough space on right
-
-        if y + 520 > self.winfo_screenheight():
-            y = 50  # Move to top if too low
-
-        self.geometry(f"+{x}+{y}")
-
         # Configure grid
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(0, weight=1)
