@@ -2,6 +2,7 @@
 
 import contextlib
 import json
+import platform
 import shutil
 import threading
 import time
@@ -383,6 +384,9 @@ class DFApp(ctk.CTk):
             scroll = ctk.CTkScrollableFrame(wrapper)
             scroll.grid(row=0, column=0, sticky="nsew")
             scroll.grid_columnconfigure(0, weight=1)
+
+            # Bind scroll wheel events to the scrollable frame for smooth scrolling
+            self._setup_scroll_events(scroll)
 
             # store container
             self.rule_containers[name.lower()] = scroll
@@ -1602,6 +1606,9 @@ class DFApp(ctk.CTk):
             child.set_first(is_first=i == 0)
             child.set_button_states(is_top=i == 0, is_bottom=i == len(children) - 1)
 
+        # Rebind scroll events after reordering
+        self._setup_scroll_events(container)
+
         self.force_preview_update()
 
     def delete_rule(self, widget: RuleRow) -> None:
@@ -1617,6 +1624,9 @@ class DFApp(ctk.CTk):
 
         # Update button states for remaining rules
         self.after(10, lambda: self.update_rule_button_states(container))
+
+        # Rebind scroll events after deletion
+        self._setup_scroll_events(container)
 
         # Update button states after deletion (rules are now below limit)
         self.update_rule_tab_buttons()
@@ -1663,6 +1673,52 @@ class DFApp(ctk.CTk):
                         else:
                             add_button.configure(state="normal")
 
+    def _setup_scroll_events(self, scroll_frame: ctk.CTkScrollableFrame) -> None:
+        """Setup mouse wheel scrolling for a scrollable frame."""
+        if not hasattr(scroll_frame, '_parent_canvas'):
+            return
+        
+        canvas = scroll_frame._parent_canvas
+        root_window = scroll_frame.winfo_toplevel()
+        
+        def on_mousewheel(event: tk.Event) -> None:
+            """Handle mouse wheel events for scrolling."""
+            try:
+                # Check if the mouse is within the canvas bounds
+                canvas_x = canvas.winfo_rootx()
+                canvas_y = canvas.winfo_rooty()
+                canvas_width = canvas.winfo_width()
+                canvas_height = canvas.winfo_height()
+                
+                if not (canvas_x <= event.x_root <= canvas_x + canvas_width and
+                        canvas_y <= event.y_root <= canvas_y + canvas_height):
+                    return  # Mouse is not over this scroll area
+                
+                if platform.system() == 'Windows':
+                    delta = int(-1 * (event.delta / 120))
+                elif platform.system() == 'Darwin':  # macOS
+                    delta = int(-1 * event.delta)
+                else:  # Linux
+                    delta = -1 if event.num == 4 else 1
+                
+                # Scroll the canvas
+                canvas.yview_scroll(delta, "units")
+            except Exception:
+                pass
+        
+        # Bind to root window using bind_all to catch all mouse wheel events
+        if platform.system() == "Linux":
+            root_window.bind_all("<Button-4>", on_mousewheel, add=True)
+            root_window.bind_all("<Button-5>", on_mousewheel, add=True)
+        else:
+            root_window.bind_all("<MouseWheel>", on_mousewheel, add=True)
+
+    def _add_scroll_overlay(self, rule_row: RuleRow, container: ctk.CTkFrame) -> None:
+        """Add scroll event handling to rule row to detect mouse hover and enable scrolling."""
+        # Scroll events are bound at the container level, not per-row
+        # This method is kept for compatibility but does nothing
+        pass
+
     def add_rule(self, container: ctk.CTkFrame) -> None:
         """Add a rule row to the specified container."""
         # Count current rules to determine if this is the first one
@@ -1677,6 +1733,9 @@ class DFApp(ctk.CTk):
             is_first=is_first,
         )
         row.pack(fill="x", padx=6, pady=3)
+        
+        # Rebind scroll events to the container to include the new rule
+        self._setup_scroll_events(container)
 
         # default template suggestions based on container tab
         parent_tab = self._container_to_tab(container)
