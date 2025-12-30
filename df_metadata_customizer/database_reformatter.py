@@ -3,7 +3,6 @@
 import contextlib
 import json
 import platform
-import shutil
 import threading
 import time
 import tkinter as tk
@@ -15,7 +14,7 @@ import customtkinter as ctk
 from PIL import Image
 
 from df_metadata_customizer import mp3_utils
-from df_metadata_customizer.dialogs import ProgressDialog, StatisticsDialog
+from df_metadata_customizer.dialogs import ConfirmDialog, ProgressDialog, StatisticsDialog
 from df_metadata_customizer.file_manager import FileManager
 from df_metadata_customizer.image_utils import OptimizedImageCache
 from df_metadata_customizer.rule_manager import RuleManager
@@ -65,6 +64,8 @@ class DFApp(ctk.CTk):
         self.visible_file_indices = []  # Track visible files for prev/next navigation
         self.progress_dialog = None  # Progress dialog reference
         self.operation_in_progress = False  # Prevent multiple operations
+        self.last_folder_opened = None  # Track last opened folder
+        self.auto_reopen_last_folder = None  # Auto-reopen last folder without prompt (None=Ask, True=Yes, False=No)
 
         # Theme management
         self.current_theme = "System"  # Start with system theme
@@ -1222,6 +1223,9 @@ class DFApp(ctk.CTk):
 
             # other UI prefs
             data["theme"] = str(self.current_theme)
+            if self.last_folder_opened:
+                data["last_folder_opened"] = self.last_folder_opened
+            data["auto_reopen_last_folder"] = self.auto_reopen_last_folder
 
             # write file
             self.settings_manager.save_settings(data)
@@ -1240,6 +1244,12 @@ class DFApp(ctk.CTk):
             if th:
                 self.current_theme = th
                 self.toggle_theme(theme=th)
+
+            # last folder
+            self.last_folder_opened = data.get("last_folder_opened")
+            self.auto_reopen_last_folder = data.get("auto_reopen_last_folder", None)
+            # Check for last folder opened
+            self.after_idle(self.check_last_folder)
 
             # column order & widths
             col_order = data.get("column_order")
@@ -1290,6 +1300,35 @@ class DFApp(ctk.CTk):
                             self.after(150, lambda: apply_ratio(attempts + 1))
 
                 self.after(200, lambda: apply_ratio(0))
+
+    def check_last_folder(self) -> None:
+        """Check if there is a last opened folder and prompt the user to load it."""
+        if not self.last_folder_opened or not Path(self.last_folder_opened).exists():
+            return
+
+        if self.auto_reopen_last_folder is True:
+            self.select_folder(self.last_folder_opened)
+            return
+
+        if self.auto_reopen_last_folder is False:
+            return
+
+        # If None, ask the user
+        dialog = ConfirmDialog(
+            self,
+            "Load Last Folder",
+            f"Do you want to load the last opened folder?\n{self.last_folder_opened}",
+            checkbox_text="Remember my choice",
+        )
+
+        if dialog.result:
+            if dialog.checkbox_checked:
+                self.auto_reopen_last_folder = True
+                self.save_settings()
+            self.select_folder(self.last_folder_opened)
+        elif dialog.checkbox_checked:  # User said NO and checked "Remember my choice"
+            self.auto_reopen_last_folder = False
+            self.save_settings()
 
     def _on_close(self) -> None:
         with contextlib.suppress(Exception):
@@ -1593,12 +1632,12 @@ class DFApp(ctk.CTk):
 
     def _setup_scroll_events(self, scroll_frame: ctk.CTkScrollableFrame) -> None:
         """Setup mouse wheel scrolling for a scrollable frame."""
-        if not hasattr(scroll_frame, '_parent_canvas'):
+        if not hasattr(scroll_frame, "_parent_canvas"):
             return
-        
+
         canvas = scroll_frame._parent_canvas
         root_window = scroll_frame.winfo_toplevel()
-        
+
         def on_mousewheel(event: tk.Event) -> None:
             """Handle mouse wheel events for scrolling."""
             try:
@@ -1607,23 +1646,25 @@ class DFApp(ctk.CTk):
                 canvas_y = canvas.winfo_rooty()
                 canvas_width = canvas.winfo_width()
                 canvas_height = canvas.winfo_height()
-                
-                if not (canvas_x <= event.x_root <= canvas_x + canvas_width and
-                        canvas_y <= event.y_root <= canvas_y + canvas_height):
+
+                if not (
+                    canvas_x <= event.x_root <= canvas_x + canvas_width
+                    and canvas_y <= event.y_root <= canvas_y + canvas_height
+                ):
                     return  # Mouse is not over this scroll area
-                
-                if platform.system() == 'Windows':
+
+                if platform.system() == "Windows":
                     delta = int(-1 * (event.delta / 120))
-                elif platform.system() == 'Darwin':  # macOS
+                elif platform.system() == "Darwin":  # macOS
                     delta = int(-1 * event.delta)
                 else:  # Linux
                     delta = -1 if event.num == 4 else 1
-                
+
                 # Scroll the canvas
                 canvas.yview_scroll(delta, "units")
             except Exception:
                 pass
-        
+
         # Bind to root window using bind_all to catch all mouse wheel events
         if platform.system() == "Linux":
             root_window.bind_all("<Button-4>", on_mousewheel, add=True)
@@ -1651,7 +1692,7 @@ class DFApp(ctk.CTk):
             is_first=is_first,
         )
         row.pack(fill="x", padx=6, pady=3)
-        
+
         # Rebind scroll events to the container to include the new rule
         self._setup_scroll_events(container)
 
@@ -1685,14 +1726,19 @@ class DFApp(ctk.CTk):
     # -------------------------
     # File / tree operations
     # -------------------------
-    def select_folder(self) -> None:
+    def select_folder(self, folder_path: str | None = None) -> None:
         """Handle folder selection and MP3 scanning with progress dialog."""
         if self.operation_in_progress:
             return
 
-        folder = filedialog.askdirectory()
+        folder = folder_path
+        if not folder:
+            folder = filedialog.askdirectory()
+
         if not folder:
             return
+
+        self.last_folder_opened = folder
 
         self.operation_in_progress = True
         self.btn_select_folder.configure(state="disabled")
