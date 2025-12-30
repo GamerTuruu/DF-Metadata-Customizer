@@ -107,14 +107,14 @@ class DFApp(ctk.CTk):
         self.max_rules_per_tab = 50
 
         # Build UI
-        self.withdraw()  # Hide the window during changes
+        # self.withdraw()  # Hide the window during changes
         self._build_ui()
 
         # Load saved settings (if any)
         with contextlib.suppress(Exception):
             self.load_settings()
 
-        self.after_idle(self.deiconify)  # Redisplay the window
+        # self.after_idle(self.deiconify)  # Redisplay the window
 
         # default presets container
         self.presets = {}
@@ -991,7 +991,7 @@ class DFApp(ctk.CTk):
                 self.current_theme = "Dark"
 
             # Hide the window during changes
-            self.withdraw()
+            # self.withdraw()
 
             # Apply the theme
             ctk.set_appearance_mode(self.current_theme)
@@ -1017,7 +1017,7 @@ class DFApp(ctk.CTk):
             print(f"Error toggling theme: {e}")
 
         # Redisplay the window
-        self.after_idle(self.deiconify)
+        # self.after_idle(self.deiconify)
 
     # -------------------------
     # UPDATED: Search with version=latest support
