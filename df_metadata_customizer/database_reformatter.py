@@ -109,10 +109,15 @@ class DFApp(ctk.CTk):
         self.max_rules_per_tab = 50
 
         # Build UI
+        self.withdraw()  # Hide the window during changes
         self._build_ui()
+
         # Load saved settings (if any)
         with contextlib.suppress(Exception):
             self.load_settings()
+
+        self.after_idle(self.deiconify)  # Redisplay the window
+
         # default presets container
         self.presets = {}
 
@@ -1001,16 +1006,21 @@ class DFApp(ctk.CTk):
             print(f"Error displaying cover: {e}")
             self._safe_cover_display_update("Error loading cover", clear_image=True)
 
-    def toggle_theme(self) -> None:
+    def toggle_theme(self, theme: str | None = None) -> None:
         """Toggle between dark and light themes."""
         try:
-            if self.current_theme == "System":
+            if theme is not None:
+                self.current_theme = theme
+            elif self.current_theme == "System":
                 # If system, switch to explicit dark
                 self.current_theme = "Dark"
             elif self.current_theme == "Dark":
                 self.current_theme = "Light"
             else:
                 self.current_theme = "Dark"
+
+            # Hide the window during changes
+            self.withdraw()
 
             # Apply the theme
             ctk.set_appearance_mode(self.current_theme)
@@ -1021,9 +1031,9 @@ class DFApp(ctk.CTk):
             self._update_output_preview_style()
             self._update_theme_button()
 
-            # Refresh the tree to apply new styles - with delay to prevent freezing
+            # Refresh the tree to apply new styles
             if self.tree.get_children():
-                self.after(100, self.refresh_tree)
+                self.after(0, self.refresh_tree)
 
             # Always load cover after theme change
             self._safe_cover_display_update("Loading cover...")
@@ -1031,8 +1041,12 @@ class DFApp(ctk.CTk):
                 self.load_current_cover()
             else:
                 self._safe_cover_display_update("No cover", clear_image=True)
+
         except Exception as e:
             print(f"Error toggling theme: {e}")
+
+        # Redisplay the window
+        self.after_idle(self.deiconify)
 
     # -------------------------
     # UPDATED: Search with version=latest support
@@ -1249,11 +1263,7 @@ class DFApp(ctk.CTk):
             th = data.get("theme")
             if th:
                 self.current_theme = th
-                ctk.set_appearance_mode(self.current_theme)
-                self._update_theme_button()
-                self._update_treeview_style()
-                self._update_json_text_style()
-                self._update_output_preview_style()
+                self.toggle_theme(theme=th)
 
             # column order & widths
             col_order = data.get("column_order")
@@ -1304,12 +1314,6 @@ class DFApp(ctk.CTk):
                             self.after(150, lambda: apply_ratio(attempts + 1))
 
                 self.after(200, lambda: apply_ratio(0))
-
-            # Always load cover if available
-            if self.current_index is not None:
-                self.load_current_cover()
-            else:
-                self._safe_cover_display_update("No cover", clear_image=True)
 
     def _on_close(self) -> None:
         with contextlib.suppress(Exception):
