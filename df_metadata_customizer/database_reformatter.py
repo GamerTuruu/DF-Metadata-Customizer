@@ -61,8 +61,15 @@ class DFApp(ctk.CTk):
         """Initialize the main application window."""
         super().__init__()
         self.title("Database Reformatter — Metadata Customizer")
-        self.geometry("1350x820")
+        width, height = 1350, 820
+        self.geometry(f"{width}x{height}")
         self.minsize(1100, 700)
+
+        # Center the window
+        self.update_idletasks()
+        x = (self.winfo_screenwidth() - width) // 2
+        y = (self.winfo_screenheight() - height) // 2
+        self.geometry(f"+{x}+{y}")
 
         SettingsManager.initialize()
         self.file_manager = FileManager()
@@ -71,7 +78,6 @@ class DFApp(ctk.CTk):
         self.mp3_files = []  # list of file paths
         self.current_index = None
         self.current_metadata: SongMetadata | None = None
-        self.current_cover_bytes = None
 
         self.visible_file_indices = []  # Track visible files for prev/next navigation
         self.progress_dialog = None  # Progress dialog reference
@@ -92,6 +98,7 @@ class DFApp(ctk.CTk):
 
         # Build UI
         self._build_ui()
+        self.update()
 
         # Load saved settings (if any)
         with contextlib.suppress(Exception):

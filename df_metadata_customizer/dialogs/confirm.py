@@ -24,15 +24,22 @@ class ConfirmDialog(ctk.CTkToplevel):
         self.result = False
         self.checkbox_checked = False
 
-        # Center the dialog on the SCREEN
+        # Center the dialog on the parent
         self.transient(parent)
 
         self.update_idletasks()
-        screen_width = self.winfo_screenwidth()
-        screen_height = self.winfo_screenheight()
+        parent.update_idletasks()
 
-        x = (screen_width - 400) // 2
-        y = (screen_height - 200) // 2
+        parent_x = parent.winfo_x()
+        parent_y = parent.winfo_y()
+        parent_width = parent.winfo_width()
+        parent_height = parent.winfo_height()
+
+        width = self.winfo_width()
+        height = self.winfo_height()
+
+        x = parent_x + (parent_width - width) // 2
+        y = parent_y + (parent_height - height) // 2
         self.geometry(f"+{x}+{y}")
 
         self.grid_columnconfigure(0, weight=1)

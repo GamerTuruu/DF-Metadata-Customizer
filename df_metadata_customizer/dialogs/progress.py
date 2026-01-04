@@ -16,15 +16,20 @@ class ProgressDialog(ctk.CTkToplevel):
         # Center the dialog
         self.transient(parent)
 
-        # Center the window
         self.update_idletasks()
+        parent.update_idletasks()
+
+        # Center the window
         parent_x = parent.winfo_x()
         parent_y = parent.winfo_y()
         parent_width = parent.winfo_width()
         parent_height = parent.winfo_height()
 
-        x = parent_x + (parent_width - 400) // 2
-        y = parent_y + (parent_height - 120) // 2
+        width = self.winfo_width()
+        height = self.winfo_height()
+
+        x = parent_x + (parent_width - width) // 2
+        y = parent_y + (parent_height - height) // 2
         self.geometry(f"+{x}+{y}")
 
         # Make it modal
