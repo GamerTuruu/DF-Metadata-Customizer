@@ -270,7 +270,7 @@ class FileManager:
 
         # Unique TAC
         stats["unique_tac"] = df.select(
-            [MetadataFields.TITLE, MetadataFields.ARTIST, MetadataFields.COVER_ARTIST]
+            [MetadataFields.TITLE, MetadataFields.ARTIST, MetadataFields.COVER_ARTIST],
         ).n_unique()
 
         # Categories

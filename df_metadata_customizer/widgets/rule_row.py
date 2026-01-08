@@ -1,4 +1,4 @@
-"""A collection of custom UI widgets for the Database Reformatter App."""
+"""Rule Row widgets for Rule Builder."""
 
 import tkinter as tk
 from collections.abc import Callable
@@ -41,7 +41,10 @@ class SortRuleRow(ctk.CTkFrame):
 
         self.field_var = tk.StringVar()
         self.field_menu = ctk.CTkOptionMenu(
-            self, values=MetadataFields.get_ui_keys(), variable=self.field_var, width=120,
+            self,
+            values=MetadataFields.get_ui_keys(),
+            variable=self.field_var,
+            width=120,
         )
         self.field_menu.grid(row=0, column=1, padx=4, pady=6, sticky="ew")
 

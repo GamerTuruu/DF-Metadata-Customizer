@@ -2,6 +2,7 @@
 
 import contextlib
 import json
+import logging
 import os
 import platform
 import shutil
@@ -12,6 +13,8 @@ from tkinter import messagebox
 from mutagen.id3 import APIC, COMM, ID3, TALB, TDRC, TIT2, TPE1, TPOS, TRCK, ID3NoHeaderError
 from PIL import Image
 from tinytag import TinyTag
+
+logger = logging.getLogger(__name__)
 
 
 def extract_json_from_mp3(path: str) -> dict | None:
@@ -33,8 +36,8 @@ def extract_json_from_mp3(path: str) -> dict | None:
             with contextlib.suppress(json.JSONDecodeError):
                 comm_data.update(json.loads(text))
 
-    except Exception as e:
-        print(f"Error parsing JSON from file comment: {e}")
+    except Exception:
+        logger.exception("Error parsing JSON from file comment")
         return None
 
     return comm_data
@@ -68,8 +71,8 @@ def write_json_to_mp3(path: str, json_data: dict | str) -> bool:
 
         # Save the tags
         tags.save(path)
-    except Exception as e:
-        print(f"Error writing JSON to MP3: {e}")
+    except Exception:
+        logger.exception("Error writing JSON to MP3")
         return False
     return True
 
@@ -82,8 +85,8 @@ def read_cover_from_mp3(path: str) -> Image.Image | None:
         if img:
             return Image.open(BytesIO(img.data))
 
-    except Exception as e:
-        print("Error reading cover image:", e)
+    except Exception:
+        logger.exception("Error reading cover image")
         return None
     return None
 
@@ -127,8 +130,8 @@ def write_id3_tags(
             tags.delall("APIC")
             tags.add(APIC(encoding=3, mime=cover_mime, type=3, desc="Cover", data=cover_bytes))
         tags.save(path)
-    except Exception as e:
-        print("Error writing tags:", e)
+    except Exception:
+        logger.exception("Error writing tags")
         return False
     return True
 
@@ -138,7 +141,7 @@ def play_song(file_path: str) -> bool:
     if platform.system() == "Windows":
         os.startfile(file_path)
     elif platform.system() == "Darwin":  # macOS
-        subprocess.run(["open", file_path])
+        subprocess.run(["open", file_path], check=False)
     else:  # Linux and other Unix-like
         # Try multiple methods for Linux/Ubuntu
         methods = [
@@ -157,7 +160,6 @@ def play_song(file_path: str) -> bool:
         ]
 
         success = False
-        error_message = ""
 
         for cmd in methods:
             try:
@@ -166,10 +168,10 @@ def play_song(file_path: str) -> bool:
                     # Run with subprocess.Popen to avoid blocking
                     subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                     success = True
-                    print(f"Playing with: {' '.join(cmd)}")
+                    logger.info("Playing with: %s", " ".join(cmd))
                     break
-            except Exception as e:
-                error_message = str(e)
+            except Exception:
+                logger.exception("Error playing audio with command: %s", " ".join(cmd))
                 continue
 
         return success

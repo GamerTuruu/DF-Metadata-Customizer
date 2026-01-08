@@ -1,21 +1,27 @@
 """Manages application settings and presets persistence."""
 
 import json
+import logging
 import shutil
 import sys
 from pathlib import Path
 from typing import Any
 
+logger = logging.getLogger(__name__)
+
 
 class SettingsManager:
     """Manages application settings and presets persistence."""
 
-    def __init__(self, app_name: str = "df_metadata_customizer") -> None:
-        """Initialize SettingsManager with application name."""
-        self.app_name = app_name
-        self._extract_bundled()
+    APP_NAME = "df_metadata_customizer"
 
-    def _extract_bundled(self) -> None:
+    @classmethod
+    def initialize(cls) -> None:
+        """Initialize SettingsManager."""
+        cls._extract_bundled()
+
+    @classmethod
+    def _extract_bundled(cls) -> None:
         """Ensure bundled presets are copied to the external presets folder."""
         if not getattr(sys, "frozen", False):
             return
@@ -25,13 +31,13 @@ class SettingsManager:
         bundled_presets = bundle_dir / "presets"
 
         # External user-facing path
-        target_presets = self.base_dir / "presets"
+        target_presets = cls.get_base_dir() / "presets"
 
         if bundled_presets.exists() and not target_presets.exists():
             shutil.copytree(bundled_presets, target_presets)
 
-    @property
-    def base_dir(self) -> Path:
+    @classmethod
+    def get_base_dir(cls) -> Path:
         """Get the base directory for the application."""
         if getattr(sys, "frozen", False):
             # Running as bundled executable
@@ -39,45 +45,50 @@ class SettingsManager:
         # Running as script - assuming this file is in df_metadata_customizer/
         return Path(__file__).resolve().parent.parent
 
-    @property
-    def settings_path(self) -> Path:
+    @classmethod
+    def get_settings_path(cls) -> Path:
         """Get the path to the settings file."""
-        return self.base_dir / f"{self.app_name}_settings.json"
+        return cls.get_base_dir() / f"{cls.APP_NAME}_settings.json"
 
-    @property
-    def presets_folder(self) -> Path:
+    @classmethod
+    def get_presets_folder(cls) -> Path:
         """Get the presets folder path, creating it if necessary."""
-        folder = self.base_dir / "presets"
+        folder = cls.get_base_dir() / "presets"
         folder.mkdir(exist_ok=True)
         return folder
 
-    def save_settings(self, data: dict[str, Any]) -> None:
+    @classmethod
+    def save_settings(cls, data: dict[str, Any]) -> None:
         """Save settings dictionary to JSON file."""
         try:
-            with self.settings_path.open("w", encoding="utf-8") as f:
+            with cls.get_settings_path().open("w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2, ensure_ascii=False)
-        except Exception as e:
-            print(f"Error saving settings: {e}")
+        except Exception:
+            logger.exception("Error saving settings")
 
-    def load_settings(self) -> dict[str, Any]:
+    @classmethod
+    def load_settings(cls) -> dict[str, Any]:
         """Load settings from JSON file."""
-        if not self.settings_path.exists():
+        if not cls.get_settings_path().exists():
             return {}
         try:
-            with self.settings_path.open("r", encoding="utf-8") as f:
+            with cls.get_settings_path().open("r", encoding="utf-8") as f:
                 return json.load(f)
         except Exception:
+            logger.exception("Error loading settings")
             return {}
 
-    def save_preset(self, name: str, preset_data: dict[str, Any]) -> None:
+    @classmethod
+    def save_preset(cls, name: str, preset_data: dict[str, list[dict[str, Any]]]) -> None:
         """Save a preset to a JSON file."""
-        preset_file = self.presets_folder / f"{name}.json"
+        preset_file = cls.get_presets_folder() / f"{name}.json"
         with preset_file.open("w", encoding="utf-8") as f:
             json.dump(preset_data, f, indent=2, ensure_ascii=False)
 
-    def load_preset(self, name: str) -> dict[str, Any]:
+    @classmethod
+    def load_preset(cls, name: str) -> dict[str, list[dict[str, Any]]]:
         """Load a preset from a JSON file."""
-        preset_file = self.presets_folder / f"{name}.json"
+        preset_file = cls.get_presets_folder() / f"{name}.json"
         if not preset_file.exists():
             msg = f"Preset file '{name}.json' not found"
             raise FileNotFoundError(msg)
@@ -85,20 +96,22 @@ class SettingsManager:
         with preset_file.open("r", encoding="utf-8") as f:
             return json.load(f)
 
-    def delete_preset(self, name: str) -> None:
+    @classmethod
+    def delete_preset(cls, name: str) -> None:
         """Delete a preset file."""
-        preset_file = self.presets_folder / f"{name}.json"
+        preset_file = cls.get_presets_folder() / f"{name}.json"
         if preset_file.exists():
             preset_file.unlink()
         else:
             msg = f"Preset '{name}' not found"
             raise FileNotFoundError(msg)
 
-    def list_presets(self) -> list[str]:
+    @classmethod
+    def list_presets(cls) -> list[str]:
         """List all available presets."""
         try:
             vals = []
-            for preset_file in self.presets_folder.glob("*.json"):
+            for preset_file in cls.get_presets_folder().glob("*.json"):
                 try:
                     vals.append(preset_file.stem)
                 except Exception:
