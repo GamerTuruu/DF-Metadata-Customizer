@@ -10,7 +10,6 @@ from tkinter import filedialog, messagebox, simpledialog
 from typing import TYPE_CHECKING, Final
 
 import customtkinter as ctk
-from PIL import Image
 from rich.logging import RichHandler
 
 from df_metadata_customizer import song_utils
@@ -49,7 +48,7 @@ logging_handler = RichHandler(
     rich_tracebacks=True,
 )
 logging.basicConfig(level=logging.DEBUG, format="%(message)s", handlers=[logging_handler])
-logging.getLogger("PIL").setLevel(logging.INFO) # Suppress PIL debug logs
+logging.getLogger("PIL").setLevel(logging.INFO)  # Suppress PIL debug logs
 
 logger = logging.getLogger(__name__)
 
@@ -465,7 +464,6 @@ class DFApp(ctk.CTk):
                 SettingsManager.sort_rules = RuleManager.get_sort_rules(self.sorting_component.sort_rules)
             except Exception:
                 SettingsManager.sort_rules = []
-
 
             # write file
             SettingsManager.save_settings()

@@ -1,6 +1,7 @@
 """Utilities for reading/writing Song ID3 tags and embedded JSON metadata."""
 
 import contextlib
+import hashlib
 import json
 import logging
 import os
@@ -8,6 +9,7 @@ import platform
 import shutil
 import subprocess
 from io import BytesIO
+from pathlib import Path
 from tkinter import messagebox
 
 from mutagen.id3 import APIC, COMM, ID3, TALB, TDRC, TIT2, TPE1, TPOS, TRCK, ID3NoHeaderError
@@ -103,7 +105,7 @@ def write_id3_tags(
     date: str | None = None,
     cover_bytes: bytes | None = None,
     cover_mime: str = "image/jpeg",
-):
+) -> bool:
     """Write provided tags to file (only provided ones). Returns True/False."""
     try:
         try:
@@ -192,3 +194,82 @@ Recommended players for Ubuntu:
 After installation, try double-clicking again."""
 
     messagebox.showinfo("Media Player Required", instructions)
+
+
+def get_audio_hash(path: str) -> str | None:
+    """Calculate SHA256 hash of the audio content, ignoring ID3v1/v2 tags.
+
+    Returns hex digest string or None on error.
+    """
+    try:
+        sha256 = hashlib.sha256()
+        with Path(path).open("rb") as f:
+            # Check for ID3v2 at start
+            # Structure: https://id3.org/id3v2.4.0-structure#section-3
+            header = f.read(10)
+            start_offset = 0
+
+            if header.startswith(b"ID3") and len(header) == 10:
+                # Calculate ID3v2 size
+                version = header[3]
+                size_bytes = header[6:10]
+
+                if version < 3:
+                    # Normal 32-bit integer (rare ID3v2.2)
+                    # Spec: https://id3.org/id3v2.2.0
+                    size = (size_bytes[0] << 24) | (size_bytes[1] << 16) | (size_bytes[2] << 8) | size_bytes[3]
+                else:
+                    # Sync-safe integer (ID3v2.3, v2.4)
+                    # Decoding: https://id3.org/id3v2.4.0-structure#section-3.2
+                    size = (
+                        ((size_bytes[0] & 0x7F) << 21)
+                        | ((size_bytes[1] & 0x7F) << 14)
+                        | ((size_bytes[2] & 0x7F) << 7)
+                        | (size_bytes[3] & 0x7F)
+                    )
+
+                start_offset = size + 10  # Header (10) + Data
+
+                # Check for Footer present flag (Bit 4 of byte 5)
+                # Only valid for ID3v2.4, but harmless to check if flags exist
+                # Spec: https://id3.org/id3v2.4.0-structure#section-3.4
+                if version >= 4:
+                    flags = header[5]
+                    if flags & 0x10:
+                        start_offset += 10  # Footer size
+
+            # Check for ID3v1 at end
+            # Spec: https://id3.org/ID3v1
+            f.seek(0, os.SEEK_END)
+            file_size = f.tell()
+            end_offset = file_size
+
+            # ID3v1 is last 128 bytes if it starts with TAG
+            if file_size > 128:
+                f.seek(-128, os.SEEK_END)
+                if f.read(3) == b"TAG":
+                    end_offset = file_size - 128
+
+            # Read audio data
+            f.seek(start_offset)
+            bytes_to_read = end_offset - start_offset
+
+            if bytes_to_read <= 0:
+                # Fallback: just hash the whole file if parsing failed
+                # or offsets are invalid
+                f.seek(0)
+                bytes_to_read = file_size
+
+            # Read in chunks
+            chunk_size = 65536
+            while bytes_to_read > 0:
+                chunk = f.read(min(chunk_size, bytes_to_read))
+                if not chunk:
+                    break
+                sha256.update(chunk)
+                bytes_to_read -= len(chunk)
+
+        return sha256.hexdigest()
+    except Exception:
+        logger.exception("Error calculating audio hash")
+        return None
