@@ -411,6 +411,7 @@ class DFApp(ctk.CTk):
             ctk.set_appearance_mode(SettingsManager.theme)
 
             # Update all theme-dependent elements
+            self.menu_component.update_theme()
             self.tree_component.update_theme()
             self.json_edit_component.update_theme()
             self.output_preview_component.update_theme()

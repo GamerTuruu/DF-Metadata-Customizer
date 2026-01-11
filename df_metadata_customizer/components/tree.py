@@ -3,6 +3,9 @@
 import contextlib
 import json
 import logging
+import os
+import platform
+import subprocess
 import tkinter as tk
 from tkinter import messagebox, ttk
 from typing import override
@@ -52,7 +55,6 @@ class TreeComponent(AppComponent):
 
         # Configure treeview style - will be updated by theme
         self.style = ttk.Style()
-        self.update_theme()
 
         # Configure columns
         column_configs = {
@@ -86,6 +88,8 @@ class TreeComponent(AppComponent):
         self.context_menu = tk.Menu(self, tearoff=0)
         self.context_menu.add_command(label="Copy", command=lambda: None)
         self.context_menu.add_command(label="Copy JSON", command=lambda: None)
+        self.context_menu.add_separator()
+        self.context_menu.add_command(label="Open File Location", command=lambda: None)
 
         # Vertical scrollbar
         self.tree_scroll_v = ttk.Scrollbar(self, orient="vertical", command=self.tree.yview)
@@ -100,10 +104,15 @@ class TreeComponent(AppComponent):
         self.tree_scroll_v.grid(row=0, column=1, sticky="ns")
         self.tree_scroll_h.grid(row=1, column=0, sticky="ew")
 
+        # Apply theme
+        self.update_theme()
+
     @override
     def update_theme(self) -> None:
         try:
             dark = SettingsManager.is_dark_mode()
+
+            # Treeview
             self.style.theme_use("default")
             self.style.configure(
                 "Treeview",
@@ -126,6 +135,15 @@ class TreeComponent(AppComponent):
                 "Treeview.Heading",
                 background=[("active", "#4b4b4b" if dark else "#e0e0e0")],
             )
+
+            # Context menu
+            self.context_menu.configure(
+                background="#2b2b2b" if dark else "white",
+                foreground="white" if dark else "black",
+                activebackground="#1f6aa5" if dark else "#0078d7",
+                activeforeground="white",
+            )
+
         except Exception:
             logger.exception("Error updating treeview style")
 
@@ -171,23 +189,48 @@ class TreeComponent(AppComponent):
                             command=lambda: self.copy_to_clipboard(value),
                         )
 
-                        # Copy JSON
                         try:
                             idx = int(row_id)
                             path = self.app.song_files[idx]
-                            metadata = self.app.file_manager.get_metadata(path)
-                            json_data = json.dumps(metadata.raw_data, indent=2)
+
+                            # Open File Location
                             self.context_menu.entryconfigure(
-                                1,
+                                3,
                                 state="normal",
-                                command=lambda: self.copy_to_clipboard(json_data),
+                                command=lambda: self.open_file_location(path),
                             )
+
+                            # Copy JSON
+                            try:
+                                metadata = self.app.file_manager.get_metadata(path)
+                                json_data = json.dumps(metadata.raw_data, indent=2)
+                                self.context_menu.entryconfigure(
+                                    1,
+                                    state="normal",
+                                    command=lambda: self.copy_to_clipboard(json_data),
+                                )
+                            except Exception:
+                                self.context_menu.entryconfigure(1, state="disabled")
                         except Exception:
                             self.context_menu.entryconfigure(1, state="disabled")
+                            self.context_menu.entryconfigure(3, state="disabled")
 
                         self.context_menu.tk_popup(event.x_root, event.y_root)
                 except ValueError:
                     pass
+
+    def open_file_location(self, file_path: str) -> None:
+        """Open the file explorer with the given file selected."""
+        try:
+            path = os.path.normpath(file_path)
+            if platform.system() == "Windows":
+                subprocess.Popen(["explorer", "/select,", path])
+            elif platform.system() == "Darwin":  # macOS
+                subprocess.Popen(["open", "-R", path])
+            else:  # Linux and others
+                subprocess.Popen(["xdg-open", os.path.dirname(path)])
+        except Exception as e:
+            messagebox.showerror("Error", f"Could not open file location:\n{e}")
 
     def copy_to_clipboard(self, text: str) -> None:
         """Copy text to system clipboard."""
