@@ -26,6 +26,7 @@ from df_metadata_customizer.components import (
     StatisticsComponent,
     TreeComponent,
 )
+from df_metadata_customizer.components.app_menu import AppMenuComponent
 from df_metadata_customizer.dialogs import ConfirmDialog, ProgressDialog
 from df_metadata_customizer.file_manager import FileManager
 from df_metadata_customizer.image_utils import LRUCTKImageCache
@@ -56,7 +57,7 @@ logger = logging.getLogger(__name__)
 class DFApp(ctk.CTk):
     """Main application window for Database Reformatter.
 
-    Separated into components for modularity.
+    Separated into components.
     Logic between multiple separate components should be handled here.
     """
 
@@ -126,6 +127,10 @@ class DFApp(ctk.CTk):
             self.protocol("WM_DELETE_WINDOW", self._on_close)
 
     def _build_ui(self) -> None:
+        # Top Menu Bar
+        self.menu_component = AppMenuComponent(self, self)
+        self.menu_component.pack(side="top", fill="x")
+
         # Use a PanedWindow for draggable splitter
         self.paned = tk.PanedWindow(
             self,
