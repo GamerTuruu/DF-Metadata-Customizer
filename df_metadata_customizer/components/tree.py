@@ -10,6 +10,7 @@ from typing import override
 from df_metadata_customizer import song_utils
 from df_metadata_customizer.components.app_component import AppComponent
 from df_metadata_customizer.rule_manager import RuleManager
+from df_metadata_customizer.settings_manager import SettingsManager
 from df_metadata_customizer.song_metadata import MetadataFields
 
 logger = logging.getLogger(__name__)
@@ -102,7 +103,7 @@ class TreeComponent(AppComponent):
     @override
     def update_theme(self) -> None:
         try:
-            dark = self.app.is_dark_mode
+            dark = SettingsManager.is_dark_mode()
             self.style.theme_use("default")
             self.style.configure(
                 "Treeview",
@@ -235,7 +236,7 @@ class TreeComponent(AppComponent):
                             self.tree.heading(self.highlighted_column, background="")
                     # set new highlight (color depends on theme)
                     try:
-                        hl = "#4b94d6" if (self.app.current_theme == "Light") else "#3b6ea0"
+                        hl = "#4b94d6" if (SettingsManager.theme == "Light") else "#3b6ea0"
                         self.tree.heading(target, background=hl)
                         self.highlighted_column = target
                     except Exception:

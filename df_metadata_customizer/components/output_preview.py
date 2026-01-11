@@ -7,6 +7,7 @@ import customtkinter as ctk
 
 from df_metadata_customizer.components.app_component import AppComponent
 from df_metadata_customizer.rule_manager import RuleManager
+from df_metadata_customizer.settings_manager import SettingsManager
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +56,7 @@ class OutputPreviewComponent(AppComponent):
     @override
     def update_theme(self) -> None:
         try:
-            if self.app.is_dark_mode:
+            if SettingsManager.is_dark_mode():
                 # Dark theme
                 bg_color = "#3b3b3b"
                 text_color = "white"

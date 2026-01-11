@@ -8,6 +8,7 @@ from typing import override
 import customtkinter as ctk
 
 from df_metadata_customizer.components.app_component import AppComponent
+from df_metadata_customizer.settings_manager import SettingsManager
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +47,7 @@ class PresetComponent(AppComponent):
     @override
     def update_theme(self) -> None:
         try:
-            if self.app.is_dark_mode:
+            if SettingsManager.is_dark_mode():
                 # Currently dark, show light theme button
                 self.theme_btn.configure(
                     text="☀️",

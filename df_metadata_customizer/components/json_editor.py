@@ -13,6 +13,7 @@ import customtkinter as ctk
 from df_metadata_customizer import song_utils
 from df_metadata_customizer.components.app_component import AppComponent
 from df_metadata_customizer.file_manager import FileManager
+from df_metadata_customizer.settings_manager import SettingsManager
 
 if TYPE_CHECKING:
     from df_metadata_customizer.song_metadata import SongMetadata
@@ -71,7 +72,7 @@ class JSONEditComponent(AppComponent):
     @override
     def update_theme(self) -> None:
         try:
-            if self.app.is_dark_mode:
+            if SettingsManager.is_dark_mode():
                 self.json_text.configure(bg="#2b2b2b", fg="white", insertbackground="white", selectbackground="#1f6aa5")
             else:
                 self.json_text.configure(bg="white", fg="black", insertbackground="black", selectbackground="#0078d7")

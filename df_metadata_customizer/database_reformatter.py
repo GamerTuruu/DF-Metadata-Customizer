@@ -97,11 +97,8 @@ class DFApp(ctk.CTk):
         self.visible_file_indices = []  # Track visible files for prev/next navigation
         self.progress_dialog = None  # Progress dialog reference
         self.operation_in_progress = False  # Prevent multiple operations
-        self.last_folder_opened = None  # Track last opened folder
-        self.auto_reopen_last_folder = None  # Auto-reopen last folder without prompt (None=Ask, True=Yes, False=No)
 
         # Theme management
-        self.current_theme = "System"  # Start with system theme
         self.theme_icon_cache = {}  # Cache for theme icons
 
         # Cover image settings - OPTIMIZED
@@ -401,17 +398,17 @@ class DFApp(ctk.CTk):
         """Toggle between dark and light themes."""
         try:
             if theme is not None:
-                self.current_theme = theme
-            elif self.current_theme == "System":
+                SettingsManager.theme = theme
+            elif SettingsManager.theme == "System":
                 # If system, switch to explicit dark
-                self.current_theme = "Dark"
-            elif self.current_theme == "Dark":
-                self.current_theme = "Light"
+                SettingsManager.theme = "Dark"
+            elif SettingsManager.theme == "Dark":
+                SettingsManager.theme = "Light"
             else:
-                self.current_theme = "Dark"
+                SettingsManager.theme = "Dark"
 
             # Apply the theme
-            ctk.set_appearance_mode(self.current_theme)
+            ctk.set_appearance_mode(SettingsManager.theme)
 
             # Update all theme-dependent elements
             self.tree_component.update_theme()
@@ -439,18 +436,17 @@ class DFApp(ctk.CTk):
     def save_settings(self) -> None:
         """Save UI settings to a JSON file."""
         try:
-            data = {}
             # sash ratio
             try:
                 sash_pos = self.paned.sash_coord(0)[0]  # Get the x position of the sash
                 total = self.paned.winfo_width() or 1
-                data["sash_ratio"] = float(sash_pos) / float(total)
+                SettingsManager.sash_ratio = float(sash_pos) / float(total)
             except (AttributeError, IndexError, TypeError):
-                data["sash_ratio"] = None
+                SettingsManager.sash_ratio = None
 
             # column order and widths
             try:
-                data["column_order"] = self.tree_component.column_order
+                SettingsManager.column_order = self.tree_component.column_order
                 widths = {}
                 for col in self.tree_component.column_order:
                     try:
@@ -458,37 +454,28 @@ class DFApp(ctk.CTk):
                         widths[col] = int(info.get("width", 0))
                     except Exception:
                         widths[col] = 0
-                data["column_widths"] = widths
+                SettingsManager.column_widths = widths
             except Exception:
-                data["column_order"] = self.tree_component.column_order
-                data["column_widths"] = {}
+                SettingsManager.column_order = self.tree_component.column_order
+                SettingsManager.column_widths = {}
 
             # sort rules
             try:
-                data["sort_rules"] = RuleManager.get_sort_rules(self.sorting_component.sort_rules)
+                SettingsManager.sort_rules = RuleManager.get_sort_rules(self.sorting_component.sort_rules)
             except Exception:
-                data["sort_rules"] = []
+                SettingsManager.sort_rules = []
 
-            # other UI prefs
-            data["theme"] = str(self.current_theme)
-            if self.last_folder_opened:
-                data["last_folder_opened"] = self.last_folder_opened
-            data["auto_reopen_last_folder"] = self.auto_reopen_last_folder
 
             # write file
-            SettingsManager.save_settings(data)
+            SettingsManager.save_settings()
         except Exception:
             logger.exception("Error saving settings")
 
     def load_settings(self) -> None:
         """Load UI settings from JSON file and apply them where possible."""
-        data = SettingsManager.load_settings()
-        if not data:
-            return
-
-        # theme
+        # Theme
         try:
-            th = data.get("theme")
+            th = SettingsManager.theme
             if th:
                 self.current_theme = th
                 self.toggle_theme(theme=th)
@@ -497,14 +484,12 @@ class DFApp(ctk.CTk):
 
         try:
             # last folder
-            self.last_folder_opened = data.get("last_folder_opened")
-            self.auto_reopen_last_folder = data.get("auto_reopen_last_folder", None)
             # Check for last folder opened
             self.after_idle(self.check_last_folder)
 
             # column order & widths
-            col_order = data.get("column_order")
-            col_widths = data.get("column_widths", {})
+            col_order = SettingsManager.column_order
+            col_widths = SettingsManager.column_widths
             if col_order and isinstance(col_order, list):
                 # apply order
                 self.tree_component.column_order = col_order
@@ -519,7 +504,7 @@ class DFApp(ctk.CTk):
 
         try:
             # sort rules
-            sort_rules = data.get("sort_rules") or []
+            sort_rules = SettingsManager.sort_rules or []
             if isinstance(sort_rules, list) and sort_rules:
                 # ensure at least one rule exists
                 # clear existing additional rules and set values
@@ -543,7 +528,7 @@ class DFApp(ctk.CTk):
 
         try:
             # sash ratio - apply after window is laid out
-            sash_ratio = data.get("sash_ratio")
+            sash_ratio = SettingsManager.sash_ratio
             if sash_ratio is not None:
 
                 def apply_ratio(attempts: int = 0) -> None:
@@ -566,31 +551,31 @@ class DFApp(ctk.CTk):
 
     def check_last_folder(self) -> None:
         """Check if there is a last opened folder and prompt the user to load it."""
-        if not self.last_folder_opened or not Path(self.last_folder_opened).exists():
+        if not SettingsManager.last_folder_opened or not Path(SettingsManager.last_folder_opened).exists():
             return
 
-        if self.auto_reopen_last_folder is True:
-            self.select_folder(self.last_folder_opened)
+        if SettingsManager.auto_reopen_last_folder is True:
+            self.select_folder(SettingsManager.last_folder_opened)
             return
 
-        if self.auto_reopen_last_folder is False:
+        if SettingsManager.auto_reopen_last_folder is False:
             return
 
         # If None, ask the user
         dialog = ConfirmDialog(
             self,
             "Load Last Folder",
-            f"Do you want to load the last opened folder?\n{self.last_folder_opened}",
+            f"Do you want to load the last opened folder?\n{SettingsManager.last_folder_opened}",
             checkbox_text="Remember my choice",
         )
 
         if dialog.result:
             if dialog.checkbox_checked:
-                self.auto_reopen_last_folder = True
+                SettingsManager.auto_reopen_last_folder = True
                 self.save_settings()
-            self.select_folder(self.last_folder_opened)
+            self.select_folder(SettingsManager.last_folder_opened)
         elif dialog.checkbox_checked:  # User said NO and checked "Remember my choice"
-            self.auto_reopen_last_folder = False
+            SettingsManager.auto_reopen_last_folder = False
             self.save_settings()
 
     def _on_close(self) -> None:
@@ -720,7 +705,7 @@ class DFApp(ctk.CTk):
         if not folder:
             return
 
-        self.last_folder_opened = folder
+        SettingsManager.last_folder_opened = folder
 
         self.operation_in_progress = True
         self.song_controls_component.btn_select_folder.configure(state="disabled")
@@ -1234,10 +1219,6 @@ class DFApp(ctk.CTk):
     # -------------------------
     # Helper methods
     # -------------------------
-    @property
-    def is_dark_mode(self) -> bool:
-        """Check if current theme is dark mode."""
-        return self.current_theme == "Dark" or (self.current_theme == "System" and ctk.get_appearance_mode() == "Dark")
 
     def run(self) -> None:
         """Run the main application loop."""
