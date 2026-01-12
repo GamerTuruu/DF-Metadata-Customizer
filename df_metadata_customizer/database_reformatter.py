@@ -14,18 +14,20 @@ from rich.logging import RichHandler
 
 from df_metadata_customizer import song_utils
 from df_metadata_customizer.components import (
-    FilenameComponent,
+    AppMenuComponent,
     JSONEditComponent,
     NavigationComponent,
-    OutputPreviewComponent,
-    PresetComponent,
-    RuleTabsComponent,
     SongControlsComponent,
     SortingComponent,
     StatisticsComponent,
     TreeComponent,
 )
-from df_metadata_customizer.components.app_menu import AppMenuComponent
+from df_metadata_customizer.components.rules_presets import (
+    FilenameComponent,
+    OutputPreviewComponent,
+    PresetComponent,
+    RuleTabsComponent,
+)
 from df_metadata_customizer.dialogs import ConfirmDialog, ProgressDialog
 from df_metadata_customizer.file_manager import FileManager
 from df_metadata_customizer.image_utils import LRUCTKImageCache
