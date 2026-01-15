@@ -16,7 +16,6 @@ from df_metadata_customizer import song_utils
 from df_metadata_customizer.components import (
     AppMenuComponent,
     JSONEditComponent,
-    NavigationComponent,
     SongControlsComponent,
     SongEditComponent,
     SortingComponent,
@@ -24,6 +23,7 @@ from df_metadata_customizer.components import (
     TreeComponent,
 )
 from df_metadata_customizer.components.rules_presets import (
+    ApplyComponent,
     FilenameComponent,
     OutputPreviewComponent,
     PresetComponent,
@@ -174,7 +174,22 @@ class DFApp(ctk.CTk):
         self.lbl_file_info.grid(row=0, column=0, sticky="w")
 
         self.lbl_selection_info = ctk.CTkLabel(status_frame, text="0 song(s) selected")
-        self.lbl_selection_info.grid(row=0, column=1, sticky="e")
+        self.lbl_selection_info.grid(row=0, column=1, sticky="e", padx=(0, 8))
+
+        self.btn_prev = ctk.CTkButton(
+            status_frame,
+            text="◀ Prev",
+            width=70,
+            command=self.prev_file,
+        )
+        self.btn_prev.grid(row=0, column=2, sticky="e", padx=(0, 4))
+        self.btn_next = ctk.CTkButton(
+            status_frame,
+            text="Next ▶",
+            width=70,
+            command=self.next_file,
+        )
+        self.btn_next.grid(row=0, column=3, sticky="e")
 
         # Right (metadata & rules) frame
         self.right_frame = ctk.CTkFrame(self.paned, corner_radius=8)
@@ -218,6 +233,10 @@ class DFApp(ctk.CTk):
         self.filename_component = FilenameComponent(self.rules_frame, self)
         self.filename_component.grid(row=4, column=0, sticky="ew", padx=0, pady=(0, 8))
 
+        # Apply Component
+        self.apply_component = ApplyComponent(self.rules_frame, self)
+        self.apply_component.grid(row=5, column=0, sticky="ew", padx=0, pady=(0, 8))
+
         # --- Edit View Frame ---
         self.edit_frame = ctk.CTkFrame(self.right_frame, fg_color="transparent")
         self.edit_frame.grid_columnconfigure(0, weight=1)
@@ -228,10 +247,6 @@ class DFApp(ctk.CTk):
 
         # Show default view
         self.rules_frame.grid(row=2, column=0, sticky="nsew", padx=8, pady=(0, 8))
-
-        # Navigation (Bottom buttons)
-        self.navigation_component = NavigationComponent(self.right_frame, self)
-        self.navigation_component.grid(row=4, column=0, sticky="ew", padx=8, pady=(0, 8))
 
         # Set default sash location after window appears
         self.after(150, lambda: self.paned.sash_place(0, int(self.winfo_screenwidth() * 0.62), 0))
