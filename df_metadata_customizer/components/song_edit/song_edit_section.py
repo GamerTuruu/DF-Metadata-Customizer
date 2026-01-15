@@ -170,8 +170,6 @@ class SongEditComponent(AppComponent):
         if not self.is_copy_mode:
             self.cover_component.show_error(message)
 
-    # --- Actions ---
-
     def start_add_song_flow(self) -> None:
         """Handle 'Add Song' button click."""
         file_path = filedialog.askopenfilename(
@@ -249,23 +247,124 @@ class SongEditComponent(AppComponent):
         if not file_path:
             return
 
-        self.pending_cover_path = file_path
+        # Case 1: Adding New Song
+        # Since the file doesn't exist at the destination yet, we can't save the cover to it.
+        # We must keep the "pending" behavior.
+        if self.adding_new_song:
+            self.pending_cover_path = file_path
 
+            try:
+                pil_image = Image.open(file_path)
+                ctk_img = self.app.cover_cache.put(file_path, pil_image, resize=True)
+                if ctk_img:
+                    self.cover_component.update_image(ctk_img)
+                    base_text = self.info_label.cget("text").split(" *")[0]
+                    self.info_label.configure(text=base_text + " *Cover Changed*")
+                else:
+                    messagebox.showerror("Error", "Failed to process image")
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to load image: {e}")
+            return
+
+        # Case 2: Editing Existing Song(s)
+        # Apply changes immediately as requested.
         try:
+            # Determine targets
+            targets = [self.current_metadata.path]
+
+            # Check if we have a selection in the tree that we should apply to
+            selected_items = self.app.tree_component.tree.selection()
+            if len(selected_items) > 0:
+                selected_paths = []
+                for iid in selected_items:
+                    try:
+                        idx = int(iid)
+                        if 0 <= idx < len(self.app.song_files):
+                            selected_paths.append(self.app.song_files[idx])
+                    except ValueError:
+                        continue
+
+                # If valid selection found, use it
+                if selected_paths:
+                    targets = selected_paths
+
+            # If current song is not in the selection (weird edge case), ensure we at least update what we see or ask user?
+            # Standard logic: if selection exists, operate on selection. If not, operate on current view.
+            # The logic above defaults to current view, creating list from selection if exists.
+
+            # Confirmation
+            msg = f"Update cover art for: {Path(self.current_metadata.path).name}"
+            if len(targets) > 1:
+                msg = f"Update cover art for {len(targets)} selected files?"
+
+            if not messagebox.askyesno("Confirm Cover Update", msg):
+                return
+
+            # Read bytes directly from the new image file
+            cover_bytes = Path(file_path).read_bytes()
+
+            # Determine mime type
+            mime_type = "image/jpeg"
+            enc_lower = file_path.lower()
+            if enc_lower.endswith(".png"):
+                mime_type = "image/png"
+            elif enc_lower.endswith(".bmp"):
+                mime_type = "image/bmp"
+
+            # Apply
             pil_image = Image.open(file_path)
-            ctk_img = ctk.CTkImage(light_image=pil_image, size=(200, 200))
-            self.cover_component.update_image(ctk_img)
+            success_count = 0
+            for path in targets:
+                if song_utils.write_id3_tags(path, cover_bytes=cover_bytes, cover_mime=mime_type):
+                    success_count += 1
+
+                # Update the cache and view
+                img = self.app.cover_cache.put(path, pil_image, resize=True)
+                if path == self.current_metadata.path:
+                    self.cover_component.update_image(img)
+
+            # Commit changes (if manager needs it)
+            self.app.file_manager.commit()
+
+            # Reset pending state if any
+            self.pending_cover_path = None
+
+            # Clean label (remove previous *Cover Changed* if present)
             base_text = self.info_label.cget("text").split(" *")[0]
-            self.info_label.configure(text=base_text + " *Cover Changed*")
+            self.info_label.configure(text=base_text)
+
+            messagebox.showinfo("Success", f"Cover art updated for {success_count} files.")
+
         except Exception as e:
-            messagebox.showerror("Error", f"Failed to load image: {e}")
+            logger.exception("Failed to update cover art")
+            messagebox.showerror("Error", f"Failed to update cover art: {e}")
 
     def confirm_changes(self) -> None:
         """Save changes to file(s)."""
-        data_changes = self.metadata_editor.get_current_data()
+        ui_data = self.metadata_editor.get_current_data()
 
-        targets_metadata = []
-        targets_cover = []
+        # 1. Prepare JSON Data
+        json_data = {}
+        for ui_key, json_key in self.metadata_editor.KEY_MAP.items():
+            if ui_key in ui_data:
+                json_data[json_key] = ui_data[ui_key]
+
+        # 2. Prepare ID3 Data
+        id3_data = {}
+        if MetadataFields.UI_ID3_TITLE in ui_data:
+            id3_data["title"] = ui_data[MetadataFields.UI_ID3_TITLE]
+        if MetadataFields.UI_ID3_ARTIST in ui_data:
+            id3_data["artist"] = ui_data[MetadataFields.UI_ID3_ARTIST]
+        if MetadataFields.UI_ID3_ALBUM in ui_data:
+            id3_data["album"] = ui_data[MetadataFields.UI_ID3_ALBUM]
+        if MetadataFields.UI_ID3_TRACK in ui_data:
+            id3_data["track"] = ui_data[MetadataFields.UI_ID3_TRACK]
+        if MetadataFields.UI_ID3_DISC in ui_data:
+            id3_data["disc"] = ui_data[MetadataFields.UI_ID3_DISC]
+        if MetadataFields.UI_ID3_DATE in ui_data:
+            id3_data["date"] = ui_data[MetadataFields.UI_ID3_DATE]
+
+        target_path = None
         final_dest_path = None
 
         # Logic for Adding vs Editing
@@ -290,8 +389,7 @@ class SongEditComponent(AppComponent):
                 return
 
             final_dest_path = out_path
-            targets_metadata = [final_dest_path]
-            targets_cover = [final_dest_path]
+            target_path = final_dest_path
 
             msg = f"Adding New Song:\nFrom: {self.new_song_source_path}\nTo: {final_dest_path}"
 
@@ -300,26 +398,9 @@ class SongEditComponent(AppComponent):
                 return
 
             main_path = self.current_metadata.path
-            targets_metadata = [main_path]
-
-            # Determine cover targets (all selected files)
-            selected_items = self.app.tree_component.tree.selection()
-            if len(selected_items) > 0:
-                # Convert IID to index to path
-                targets_cover = []
-                for iid in selected_items:
-                    try:
-                        idx = int(iid)
-                        if 0 <= idx < len(self.app.song_files):
-                            targets_cover.append(self.app.song_files[idx])
-                    except ValueError:
-                        continue
-            else:
-                targets_cover = [main_path]
+            target_path = main_path
 
             msg = f"Updating Metadata for: {Path(main_path).name}"
-            if len(targets_cover) > 1:
-                msg += f"\nUpdating Cover for {len(targets_cover)} files."
 
         if not messagebox.askyesno("Confirm Changes", msg):
             return
@@ -332,35 +413,30 @@ class SongEditComponent(AppComponent):
             # 2. METADATA (JSON + ID3)
             # data_changes is a single dict. We apply it to all metadata targets.
 
-            for path in targets_metadata:
+            if target_path:
                 # Write JSON
-                song_utils.write_json_to_song(path, data_changes)
+                song_utils.write_json_to_song(target_path, json_data)
 
                 # Write ID3 (Standard Tags)
-                song_utils.write_id3_tags(
-                    path,
-                    title=data_changes.get(MetadataFields.TITLE),
-                    artist=data_changes.get(MetadataFields.ARTIST),
-                    album=data_changes.get(
-                        MetadataFields.SPECIAL,
-                    ),  # Assuming 'Special' maps to Album sometimes? Or just use what we have.
-                    # Mapping based on MetadataFields
-                    track=str(data_changes.get(MetadataFields.TRACK, "")),
-                    desc=None,  # Not in basic ID3 func
-                    date=str(data_changes.get(MetadataFields.DATE, "")),
-                    # cover handled separately
-                )
+                song_utils.write_id3_tags(target_path, **id3_data)
 
                 # Update file manager cache
-                self.app.file_manager.update_file_data(path, data_changes)
+                self.app.file_manager.update_file_data(target_path, json_data)
 
             # 3. COVER ART
             # Only write cover if pending change exists or adding new song
             if self.pending_cover_path:
                 cover_bytes = None
+                cover_mime = "image/jpeg"
+
                 # If pending path is an image file
                 if self.pending_cover_path.lower().endswith((".png", ".jpg", ".jpeg", ".bmp")):
                     cover_bytes = Path(self.pending_cover_path).read_bytes()
+                    if self.pending_cover_path.lower().endswith(".png"):
+                        cover_mime = "image/png"
+                    elif self.pending_cover_path.lower().endswith(".bmp"):
+                        cover_mime = "image/bmp"
+
                 # If pending path is a song file (copy from another song)
                 elif self.pending_cover_path.lower().endswith(tuple(song_utils.SUPPORTED_FILES_TYPES)):
                     # extract cover
@@ -370,10 +446,10 @@ class SongEditComponent(AppComponent):
                         b = BytesIO()
                         img.save(b, format="JPEG")
                         cover_bytes = b.getvalue()
+                        # cover_mime stays jpeg
 
-                if cover_bytes:
-                    for path in targets_cover:
-                        song_utils.write_id3_tags(path, cover_bytes=cover_bytes)
+                if cover_bytes and target_path:
+                    song_utils.write_id3_tags(target_path, cover_bytes=cover_bytes, cover_mime=cover_mime)
 
             # Commit and Refresh
             self.app.file_manager.commit()

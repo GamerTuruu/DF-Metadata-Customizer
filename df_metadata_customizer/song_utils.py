@@ -47,6 +47,24 @@ def extract_json_from_song(path: str) -> dict | None:
     return comm_data
 
 
+def get_id3_tags(path: str) -> dict[str, str]:
+    """Return dictionary of standard ID3 tags."""
+    try:
+        tags = TinyTag.get(path, tags=True, image=False)
+    except Exception:
+        logger.exception("Error reading ID3 tags")
+        return {}
+
+    return {
+        "Title": tags.title or "",
+        "Artist": tags.artist or "",
+        "Album": tags.album or "",
+        "Track": str(tags.track) or "",
+        "Discnumber": str(tags.disc) or "",
+        "Date": tags.year or "",
+    }
+
+
 def write_json_to_song(path: str, json_data: dict | str) -> bool:
     """Write JSON data back to song comment tag."""
     try:

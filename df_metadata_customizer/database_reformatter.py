@@ -94,6 +94,7 @@ class DFApp(ctk.CTk):
         # Data model
         self.song_files = []  # list of file paths
         self.current_index = None
+        self.current_folder: str | None = None
         self.current_metadata: SongMetadata | None = None
 
         self.visible_file_indices = []  # Track visible files for prev/next navigation
@@ -797,6 +798,8 @@ class DFApp(ctk.CTk):
             if self.progress_dialog:
                 self.progress_dialog.label.configure(text="Loading file metadata...")
                 self.progress_dialog.progress.set(0)
+
+            self.current_folder = folder
 
             # Use optimized population
             self.populate_tree_fast()

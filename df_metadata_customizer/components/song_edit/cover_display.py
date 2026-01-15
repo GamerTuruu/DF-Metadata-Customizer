@@ -29,7 +29,8 @@ class CoverDisplayComponent(AppComponent):
     @override
     def initialize_state(self) -> None:
         """Initialize component state."""
-        self.tooltip_label = None
+        self.tooltip_label: ctk.CTkToplevel | None = None
+        self._check_job: str | None = None
 
     @override
     def setup_ui(self) -> None:
@@ -55,21 +56,10 @@ class CoverDisplayComponent(AppComponent):
         self.overlay_label = ctk.CTkLabel(
             self.image_container,
             text="Change Cover",
-            fg_color=("#EBEBEB", "#242424"),  # Use hex colors as rgba() is not supported by Tkinter
+            fg_color=("#EBEBEB", "#242424"),
             corner_radius=6,
             font=("Segoe UI", 12, "bold"),
         )
-        # Note: True transparency isn't fully supported in CTK frames,
-        # so we rely on bindings to toggle visibility or appearance.
-
-        # Bind events for hover and click
-        self.cover_label.bind("<Enter>", self._on_enter)
-        self.cover_label.bind("<Leave>", self._on_leave)
-        self.cover_label.bind("<Button-1>", self._on_click)
-
-        self.overlay_label.bind("<Enter>", self._on_enter)
-        self.overlay_label.bind("<Leave>", self._on_leave)
-        self.overlay_label.bind("<Button-1>", self._on_click)
 
         # Helper icon (Question mark)
         self.help_icon = ctk.CTkLabel(
@@ -84,8 +74,14 @@ class CoverDisplayComponent(AppComponent):
         )
         self.help_icon.place(relx=1.0, rely=0.0, anchor="ne", x=-5, y=5)
 
-        self.help_icon.bind("<Enter>", self._show_tooltip)
-        self.help_icon.bind("<Leave>", self._hide_tooltip)
+        # Bind events for hover and click
+        for widget in [self, self.image_container, self.cover_label, self.overlay_label, self.help_icon]:
+            widget.bind("<Enter>", self._schedule_check)
+
+        # Click handling
+        self.cover_label.bind("<Button-1>", self._on_click)
+        self.overlay_label.bind("<Button-1>", self._on_click)
+        self.bind("<Button-1>", self._on_click)
 
     def update_image(self, ctk_image: ctk.CTkImage | None) -> None:
         """Update the displayed image."""
@@ -106,48 +102,82 @@ class CoverDisplayComponent(AppComponent):
         """Show error state."""
         self.cover_label.configure(image=None, text=message)
 
-    def _on_enter(self, _event: tk.Event) -> None:
-        """Handle mouse enter."""
-        self.overlay_label.grid(row=0, column=0, sticky="nsew")
-        self.overlay_label.tkraise()
-        self.cover_label.configure(cursor="hand2")
-        self.overlay_label.configure(cursor="hand2")
-        self.configure(border_width=2, border_color=("gray70", "gray30"))
+    def _schedule_check(self, _event: tk.Event) -> None:
+        """Start the hover check loop if not running."""
+        if self._check_job:
+            return
+        self._check_hover()
 
-    def _on_leave(self, _event: tk.Event) -> None:
-        """Handle mouse leave."""
+    def _check_hover(self) -> None:
+        """Periodically check mouse position to manage hover states."""
         try:
-            # Check if mouse is still within the widget bounds
             x, y = self.winfo_pointerxy()
+
+            # 1. Check if inside main component
             widget_x = self.winfo_rootx()
             widget_y = self.winfo_rooty()
-            widget_width = self.winfo_width()
-            widget_height = self.winfo_height()
+            w = self.winfo_width()
+            h = self.winfo_height()
 
-            # If mouse is inside the widget, don't hide the overlay
-            if (widget_x <= x <= widget_x + widget_width) and (widget_y <= y <= widget_y + widget_height):
-                return
+            is_inside_main = (widget_x <= x <= widget_x + w) and (widget_y <= y <= widget_y + h)
+
+            if not is_inside_main:
+                self._set_overlay_visible(visible=False)
+                self._hide_tooltip()
+                self._check_job = None
+                return  # Stop the loop
+
+            # 2. Inside main component -> Show overlay
+            self._set_overlay_visible(visible=True)
+
+            # 3. Check help icon specifically (for tooltip)
+            if self.help_icon.winfo_viewable():
+                icon_x = self.help_icon.winfo_rootx()
+                icon_y = self.help_icon.winfo_rooty()
+                icon_w = self.help_icon.winfo_width()
+                icon_h = self.help_icon.winfo_height()
+
+                is_over_icon = (icon_x <= x <= icon_x + icon_w) and (icon_y <= y <= icon_y + icon_h)
+
+                if is_over_icon:
+                    self._show_tooltip()
+                else:
+                    self._hide_tooltip()
+
+            # Schedule next check
+            self._check_job = self.after(100, self._check_hover)
+
         except Exception:
-            pass
+            # If widget destroyed or error, stop loop
+            self._check_job = None
 
-        self.overlay_label.grid_forget()
-        self.cover_label.configure(cursor="")
-        self.overlay_label.configure(cursor="")
-        self.configure(border_width=0)
+    def _set_overlay_visible(self, *, visible: bool) -> None:
+        """Show or hide the 'Change Cover' overlay."""
+        if visible:
+            self.overlay_label.grid(row=0, column=0, sticky="nsew")
+            self.overlay_label.tkraise()
+            self.cover_label.configure(cursor="hand2")
+            self.overlay_label.configure(cursor="hand2")
+            self.configure(border_width=2, border_color=("#FFF8DC", "#4B4520"))
+        else:
+            self.overlay_label.grid_forget()
+            self.cover_label.configure(cursor="")
+            self.overlay_label.configure(cursor="")
+            self.configure(border_width=0)
 
     def _on_click(self, _event: tk.Event) -> None:
         """Handle click event."""
         if self.on_change_click:
             self.on_change_click()
 
-    def _show_tooltip(self, _event: tk.Event) -> None:
+    def _show_tooltip(self) -> None:
         """Show explanation tooltip."""
         if self.tooltip_label:
-            self.tooltip_label.destroy()
+            return  # Already shown
 
         self.tooltip_label = ctk.CTkToplevel(self)
         self.tooltip_label.wm_overrideredirect(boolean=True)
-        self.tooltip_label.attributes("-topmost", value=True)
+        self.tooltip_label.attributes("-topmost", True)
         self.tooltip_label.configure(fg_color=("gray85", "gray20"))
 
         # Position near help icon
@@ -158,14 +188,14 @@ class CoverDisplayComponent(AppComponent):
 
         label = ctk.CTkLabel(
             self.tooltip_label,
-            text="Click to change cover art",
+            text="Click to change cover art\nCan select multiple to change in bulk",
             font=("Segoe UI", 12),
             padx=8,
             pady=4,
         )
         label.pack()
 
-    def _hide_tooltip(self, _event: tk.Event) -> None:
+    def _hide_tooltip(self) -> None:
         """Hide tooltip."""
         if self.tooltip_label:
             self.tooltip_label.destroy()

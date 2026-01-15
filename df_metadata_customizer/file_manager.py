@@ -187,7 +187,11 @@ class FileManager:
 
         is_latest = self.is_latest_version(song_id, version)
 
-        return SongMetadata(jsond, file_path, is_latest=is_latest)
+        # Load ID3 tags
+        # For now simply store them in memory, no Dataframe usage yet
+        id3_data = song_utils.get_id3_tags(file_path)
+
+        return SongMetadata(jsond, file_path, is_latest=is_latest, id3_data=id3_data)
 
     def get_view_data(self, paths: list[str]) -> pl.DataFrame:
         """Get data for specific paths in order, formatted for treeview."""

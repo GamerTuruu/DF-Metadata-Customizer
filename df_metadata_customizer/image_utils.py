@@ -14,7 +14,7 @@ class LRUCTKImageCache:
         """Initialize the image cache."""
         self.max_size = max_size
         self._path_hash_cache: dict[str, str] = {}  # Filepath to image hash
-        self._image_hash_cache: dict[str, str] = {} # Image hash to resized image hash
+        self._image_hash_cache: dict[str, str] = {}  # Image hash to resized image hash
         self._ctkimage_cache: dict[str, ctk.CTkImage] = {}  # Resized hash to resized CTKImage
         self._access_order: deque[str] = deque()  # LRU with image hashes
 
@@ -62,7 +62,7 @@ class LRUCTKImageCache:
         new_res_hash = hashlib.sha256(processed_img.tobytes()).hexdigest()
         ctk_img = ctk.CTkImage(
             light_image=processed_img,
-            size=(processed_img.width, processed_img.height)
+            size=(processed_img.width, processed_img.height),
         )
 
         self._image_hash_cache[org_hash] = new_res_hash

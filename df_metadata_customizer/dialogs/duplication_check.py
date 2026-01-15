@@ -70,7 +70,11 @@ class DuplicationCheckDialog(ctk.CTkToplevel):
         self.btn_start.pack(side="left", padx=10, expand=True)
 
         self.btn_cancel = ctk.CTkButton(
-            self.btn_frame, text="Cancel", command=self.destroy, fg_color="transparent", border_width=1
+            self.btn_frame,
+            text="Cancel",
+            command=self.destroy,
+            fg_color="transparent",
+            border_width=1,
         )
         self.btn_cancel.pack(side="right", padx=10, expand=True)
 

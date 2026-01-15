@@ -1,6 +1,6 @@
 """Metadata Editor Component for Song Edit Section."""
 
-from typing import override
+from typing import Final, override
 
 import customtkinter as ctk
 
@@ -11,27 +11,44 @@ from df_metadata_customizer.song_metadata import MetadataFields, SongMetadata
 class MetadataEditorComponent(ScrollableAppComponent):
     """Component for editing song metadata (properties + JSON)."""
 
+    KEY_MAP: Final = {
+        MetadataFields.UI_TITLE: MetadataFields.TITLE,
+        MetadataFields.UI_ARTIST: MetadataFields.ARTIST,
+        MetadataFields.UI_COVER_ARTIST: MetadataFields.COVER_ARTIST,
+        MetadataFields.UI_VERSION: MetadataFields.VERSION,
+        MetadataFields.UI_DISC: MetadataFields.DISC,
+        MetadataFields.UI_TRACK: MetadataFields.TRACK,
+        MetadataFields.UI_DATE: MetadataFields.DATE,
+        MetadataFields.UI_COMMENT: MetadataFields.COMMENT,
+        MetadataFields.UI_SPECIAL: MetadataFields.SPECIAL,
+    }
+
+    ID3_FIELDS: Final = [
+        (MetadataFields.UI_ID3_TITLE, "Title"),
+        (MetadataFields.UI_ID3_ARTIST, "Artist"),
+        (MetadataFields.UI_ID3_ALBUM, "Album"),
+        (MetadataFields.UI_ID3_TRACK, "Track"),
+        (MetadataFields.UI_ID3_DISC, "Disc"),
+        (MetadataFields.UI_ID3_DATE, "Date"),
+    ]
+
+    JSON_FIELDS: Final = [
+        (MetadataFields.UI_TITLE, "Title"),
+        (MetadataFields.UI_ARTIST, "Artist"),
+        (MetadataFields.UI_DATE, "Date"),
+        (MetadataFields.UI_COVER_ARTIST, "Cover Artist"),
+        (MetadataFields.UI_VERSION, "Version"),
+        (MetadataFields.UI_DISC, "Discnumber"),
+        (MetadataFields.UI_TRACK, "Track"),
+        (MetadataFields.UI_COMMENT, "Comment"),
+        (MetadataFields.UI_SPECIAL, "Special"),
+    ]
+
     @override
     def initialize_state(self) -> None:
         """Initialize component state."""
         self.entries: dict[str, ctk.CTkEntry] = {}
         self.original_values: dict[str, str] = {}
-
-        # Define fields to edit
-        self.id3_fields = [
-            (MetadataFields.UI_TITLE, "Title"),
-            (MetadataFields.UI_ARTIST, "Artist"),
-            (MetadataFields.UI_DATE, "Date (Year)"),
-            (MetadataFields.UI_DISC, "Disc Number"),
-            (MetadataFields.UI_TRACK, "Track Number"),
-        ]
-
-        self.json_fields = [
-            (MetadataFields.UI_COVER_ARTIST, "Cover Artist"),
-            (MetadataFields.UI_VERSION, "Version"),
-            (MetadataFields.UI_SPECIAL, "Special"),
-            (MetadataFields.UI_COMMENT, "Comment"),
-        ]
 
     @override
     def setup_ui(self) -> None:
@@ -48,7 +65,7 @@ class MetadataEditorComponent(ScrollableAppComponent):
         lbl_id3.grid(row=current_row, column=0, columnspan=2, sticky="w", pady=(5, 5))
         current_row += 1
 
-        for key, label in self.id3_fields:
+        for key, label in self.ID3_FIELDS:
             self._add_field(key, label, current_row)
             current_row += 1
 
@@ -57,7 +74,7 @@ class MetadataEditorComponent(ScrollableAppComponent):
         lbl_json.grid(row=current_row, column=0, columnspan=2, sticky="w", pady=(15, 5))
         current_row += 1
 
-        for key, label in self.json_fields:
+        for key, label in self.JSON_FIELDS:
             self._add_field(key, label, current_row)
             current_row += 1
 
@@ -79,7 +96,7 @@ class MetadataEditorComponent(ScrollableAppComponent):
         self.original_values = {}
 
         if metadata:
-            for key, _ in self.id3_fields + self.json_fields:
+            for key, _ in self.ID3_FIELDS + self.JSON_FIELDS:
                 val = metadata.get(key)
                 self.original_values[key] = val
 
@@ -115,7 +132,7 @@ class MetadataEditorComponent(ScrollableAppComponent):
             entry.configure(fg_color=["#FFF8DC", "#4B4520"])  # light/dark mode yellow
         else:
             # Reset to default
-            entry.configure(fg_color=["#F9F9FA", "#343638"])  # ctk default entry colors approx
+            entry.configure(fg_color=["#F9F9FA", "#343638"])
 
     def has_unsaved_changes(self) -> bool:
         """Check if any field has been modified."""
