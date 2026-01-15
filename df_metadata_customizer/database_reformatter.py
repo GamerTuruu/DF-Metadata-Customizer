@@ -732,8 +732,11 @@ class DFApp(ctk.CTk):
         self.song_controls_component.btn_select_folder.configure(state="disabled")
 
         # Clear cache when loading new folder
+        self.display_cover_image(None)
+        self.update_idletasks()
+        self.song_edit_component.cover_component.update()
         self.file_manager.clear()
-        self.cover_cache.clear()
+        # self.cover_cache.clear()  # Causes issues with reloading
 
         # Show loading state immediately
         self.lbl_file_info.configure(text="Scanning folder...")

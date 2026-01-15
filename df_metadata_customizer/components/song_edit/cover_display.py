@@ -86,21 +86,21 @@ class CoverDisplayComponent(AppComponent):
     def update_image(self, ctk_image: ctk.CTkImage | None) -> None:
         """Update the displayed image."""
         if ctk_image:
-            self.cover_label.configure(image=ctk_image, text="")
+            self.after(0, lambda: self.cover_label.configure(image=ctk_image, text=""))
         else:
-            self.cover_label.configure(image=None, text="No Cover\nClick to Add")
+            self.after(0, lambda: self.cover_label.configure(image=None, text="No Cover\nClick to Add"))
 
     def show_loading(self) -> None:
         """Show loading state."""
-        self.cover_label.configure(image=None, text="Loading cover...")
+        self.after(0, lambda: self.cover_label.configure(image=None, text="Loading cover..."))
 
     def show_no_cover(self, message: str = "No cover") -> None:
         """Show no cover state with optional message."""
-        self.cover_label.configure(image=None, text=message)
+        self.after(0, lambda: self.cover_label.configure(image=None, text=message))
 
     def show_error(self, message: str = "No cover (error)") -> None:
         """Show error state."""
-        self.cover_label.configure(image=None, text=message)
+        self.after(0, lambda: self.cover_label.configure(image=None, text=message))
 
     def _schedule_check(self, _event: tk.Event) -> None:
         """Start the hover check loop if not running."""
