@@ -114,6 +114,20 @@ class MetadataEditorComponent(ScrollableAppComponent):
         """Return dictionary of current values."""
         return {key: entry.get().strip() for key, entry in self.entries.items()}
 
+    def import_metadata(self, metadata: SongMetadata) -> None:
+        """Import metadata values into fields without resetting original values."""
+        if not metadata:
+            return
+
+        for key, _ in self.ID3_FIELDS + self.JSON_FIELDS:
+            # Use the same keys as load_metadata
+            val = metadata.get(key)
+
+            entry = self.entries[key]
+            entry.delete(0, "end")
+            entry.insert(0, val)
+            self._update_entry_state(key)
+
     def _on_text_change(self, key: str) -> None:
         """Check if value changed and update UI."""
         self._update_entry_state(key)

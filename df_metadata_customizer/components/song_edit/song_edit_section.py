@@ -50,7 +50,7 @@ class SongEditComponent(AppComponent):
             self,
             text="",
             anchor="center",
-            font=("Segoe UI", 10),
+            font=("Segoe UI", 13),
             text_color="gray70",
         )
         self.info_label.grid(row=1, column=0, sticky="ew", padx=10, pady=(0, 10))
@@ -79,12 +79,25 @@ class SongEditComponent(AppComponent):
         self.metadata_editor = MetadataEditorComponent(self.content_frame, self.app)
         self.metadata_editor.grid(row=1, column=0, sticky="nsew", padx=5, pady=0)
 
-        # 4. Bottom Controls
+        # 4. Message Area (above controls)
+        self.message_frame = ctk.CTkFrame(self, fg_color="transparent", height=20)
+        self.message_frame.grid(row=3, column=0, sticky="ew", padx=10, pady=(0, 0))
+        self.message_frame.grid_propagate(flag=False)
+
+        self.copy_label = ctk.CTkLabel(
+            self.message_frame,
+            text="",
+            text_color=["#FFC107", "#FFA000"],
+            font=("Segoe UI", 11),
+        )
+        self.copy_label.pack(side="bottom", pady=0)
+
+        # 5. Bottom Controls
         self.controls_frame = ctk.CTkFrame(self, fg_color="transparent")
-        self.controls_frame.grid(row=3, column=0, sticky="ew", padx=10, pady=10)
+        self.controls_frame.grid(row=4, column=0, sticky="ew", padx=10, pady=10)
 
         self.btn_add = ctk.CTkButton(self.controls_frame, text="Add Song", command=self.start_add_song_flow, width=100)
-        self.btn_add.pack(side="left", padx=5)
+        self.btn_add.pack(side="left", padx=5, anchor="s")
 
         self.btn_copy = ctk.CTkButton(
             self.controls_frame,
@@ -93,7 +106,7 @@ class SongEditComponent(AppComponent):
             fg_color="gray50",
             width=100,
         )
-        self.btn_copy.pack(side="left", padx=5)
+        self.btn_copy.pack(side="left", padx=5, anchor="s")
 
         # Spacer
         ctk.CTkFrame(self.controls_frame, fg_color="transparent", height=1).pack(side="left", fill="x", expand=True)
@@ -106,7 +119,7 @@ class SongEditComponent(AppComponent):
             state="disabled",
             width=140,
         )
-        self.btn_confirm.pack(side="right", padx=5)
+        self.btn_confirm.pack(side="right", padx=5, anchor="s")
 
     def update_view(self, metadata: SongMetadata | None, *, forced: bool = False) -> None:
         """Update the view with a song metadata object."""
@@ -115,8 +128,10 @@ class SongEditComponent(AppComponent):
             self._handle_copy_from_metadata(metadata)
             return
 
-        if not self.adding_new_song:
+        if not self.adding_new_song and not self.is_copy_mode:
             self.current_metadata = metadata
+            # Clear success message when navigating normally
+            self.copy_label.configure(text="")
 
         if metadata:
             # Update title
@@ -141,7 +156,7 @@ class SongEditComponent(AppComponent):
     def _update_header_text(self, path: str) -> None:
         """Update info label text."""
         try:
-            rel_path = Path(path).relative_to(Path(self.app.song_controls_component.current_folder).parent)
+            rel_path = Path(path).relative_to(Path(self.app.current_folder).parent)
         except Exception:
             rel_path = Path(path).name
 
@@ -174,7 +189,7 @@ class SongEditComponent(AppComponent):
         """Handle 'Add Song' button click."""
         file_path = filedialog.askopenfilename(
             title="Select Song to Add",
-            filetypes=[("Audio Files", "*.mp3 *.flac *.ogg *.wav"), ("All Files", "*.*")],
+            filetypes=[("Audio Files", [f"*{ext}" for ext in song_utils.SUPPORTED_FILES_TYPES])],
         )
         if not file_path:
             return
@@ -186,7 +201,7 @@ class SongEditComponent(AppComponent):
         data = self.app.file_manager.get_metadata(file_path)
 
         # Determine likely output path
-        current_folder = getattr(self.app.song_controls_component, "current_folder", None)
+        current_folder = self.app.current_folder
         if current_folder and Path(current_folder).exists():
             out_path = Path(current_folder) / Path(file_path).name
         else:
@@ -208,29 +223,43 @@ class SongEditComponent(AppComponent):
         """Toggle 'Copy Data' mode."""
         self.is_copy_mode = not self.is_copy_mode
         if self.is_copy_mode:
-            self.btn_copy.configure(fg_color=["#3B8ED0", "#1F6AA5"], border_width=2, text="Select Source")  # Highlight
+            # Entering copy mode
+            self.btn_copy.configure(
+                fg_color=["#FFC107", "#FFA000"],
+                hover_color=["#FFB300", "#FF8F00"],
+                border_width=2,
+                text="Copying...",
+                text_color="black",
+            )
+
+            self.copy_label.configure(text="Select source song...", text_color=["#FFC107", "#FFA000"])
+
         else:
-            self.btn_copy.configure(fg_color="gray50", border_width=0, text="Copy Data")
+            # Exiting copy mode
+            self.btn_copy.configure(
+                fg_color="gray50",
+                hover_color=["gray43", "gray35"],
+                border_width=0,
+                text="Copy Data",
+                text_color=["gray98", "#DCE4EE"],
+            )
+
+            # If we cancelled (label text is "Select source..."), clear it.
+            # If we succeeded (label text is "Copied..."), keep it.
+            current_text = self.copy_label.cget("text")
+            if current_text == "Select source song...":
+                self.copy_label.configure(text="")
 
     def _handle_copy_from_metadata(self, metadata: SongMetadata) -> None:
         """Copy data from selected metadata into editor."""
-        self.metadata_editor.load_metadata(metadata)
-
-        # Capture cover art from source song
-        if metadata.path:
-            self.pending_cover_path = metadata.path
-            # To update the display, we must temporarily disable copy mode
-            was_copy_mode = self.is_copy_mode
-            self.is_copy_mode = False
-            self.app.load_cover_art(metadata.path)
-            self.is_copy_mode = was_copy_mode
-
-        # Update title
-        title = metadata.raw_data.get(MetadataFields.TITLE) or Path(metadata.path).stem
-        self.title_label.configure(text=title)
+        # Use import_metadata to treat changes as manual edits (unsaved)
+        self.metadata_editor.import_metadata(metadata)
 
         rel_path = Path(metadata.path).name
-        self.info_label.configure(text=f"Copied data from: {rel_path}")
+        completion_msg = f"Copied data from: {rel_path}"
+
+        # Set success message before toggling off
+        self.copy_label.configure(text=completion_msg, text_color=["#FFC107", "#FFA000"])
 
         self.toggle_copy_mode()  # Turn off
         self.btn_confirm.configure(state="normal")
@@ -288,7 +317,7 @@ class SongEditComponent(AppComponent):
                 if selected_paths:
                     targets = selected_paths
 
-            # If current song is not in the selection (weird edge case), ensure we at least update what we see or ask user?
+            # If current song is not in the selection (weird edge case), ensure at least update current view.
             # Standard logic: if selection exists, operate on selection. If not, operate on current view.
             # The logic above defaults to current view, creating list from selection if exists.
 
@@ -372,7 +401,7 @@ class SongEditComponent(AppComponent):
             initial_file = Path(self.new_song_source_path).name
 
             # Determine initial dir for save dialog
-            current_folder = getattr(self.app.song_controls_component, "current_folder", None)
+            current_folder = self.app.current_folder
             start_dir = (
                 current_folder
                 if current_folder and Path(current_folder).exists()
@@ -406,12 +435,11 @@ class SongEditComponent(AppComponent):
             return
 
         try:
-            # 1. ADDING: Copy file
+            # 1. Copy file
             if self.adding_new_song and final_dest_path:
                 shutil.copy2(self.new_song_source_path, final_dest_path)
 
-            # 2. METADATA (JSON + ID3)
-            # data_changes is a single dict. We apply it to all metadata targets.
+            # 2. metadata (JSON + ID3)
 
             if target_path:
                 # Write JSON
@@ -423,7 +451,7 @@ class SongEditComponent(AppComponent):
                 # Update file manager cache
                 self.app.file_manager.update_file_data(target_path, json_data)
 
-            # 3. COVER ART
+            # 3. Cover Art
             # Only write cover if pending change exists or adding new song
             if self.pending_cover_path:
                 cover_bytes = None
@@ -450,6 +478,30 @@ class SongEditComponent(AppComponent):
 
                 if cover_bytes and target_path:
                     song_utils.write_id3_tags(target_path, cover_bytes=cover_bytes, cover_mime=cover_mime)
+
+            # 4. Update song list and treeview
+            if self.adding_new_song and target_path:
+                try:
+                    path_str = str(Path(target_path))
+                    should_add = False
+
+                    if self.app.current_folder:
+                        curr_folder_path = Path(self.app.current_folder).resolve()
+                        target_path_obj = Path(target_path).resolve()
+
+                        # Check if target is inside current folder (or subfolder)
+                        # Iterate parents to support subfolders
+                        if curr_folder_path == target_path_obj.parent or curr_folder_path in target_path_obj.parents:
+                            should_add = True
+                    else:
+                        should_add = True
+
+                    if should_add and path_str not in self.app.song_files:
+                        self.app.song_files.append(path_str)
+                        self.app.populate_tree_fast()
+
+                except Exception as e:
+                    logger.error(f"Failed to add new song to view: {e}")
 
             # Commit and Refresh
             self.app.file_manager.commit()
