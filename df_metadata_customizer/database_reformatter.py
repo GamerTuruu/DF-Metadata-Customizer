@@ -907,7 +907,7 @@ class DFApp(ctk.CTk):
         self.load_current_cover()
 
         # Update Song Edit View
-        self.song_edit_component.update_view(self.current_metadata)
+        self.after_idle(lambda: self.song_edit_component.update_view(self.current_metadata))
 
     def prev_file(self) -> None:
         """Navigate to previous file in the visible list."""

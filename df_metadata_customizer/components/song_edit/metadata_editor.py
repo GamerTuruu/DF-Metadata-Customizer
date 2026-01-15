@@ -135,9 +135,7 @@ class MetadataEditorComponent(ScrollableAppComponent):
     def _update_entry_state(self, key: str) -> None:
         """Update entry visual state based on modification."""
         entry = self.entries[key]
-        current_val = (
-            entry.get()
-        )  # Don't strip here to detect whitespace changes, or do? usually strip is better for data
+        current_val = entry.get()
         original_val = self.original_values.get(key, "")
 
         # Visual highlight if changed
