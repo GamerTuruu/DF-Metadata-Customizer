@@ -1,9 +1,13 @@
 """Metadata Editor Component for Song Edit Section."""
 
 import platform
-from typing import Final, override
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Final, override
 
 import customtkinter as ctk
+
+if TYPE_CHECKING:
+    from df_metadata_customizer.database_reformatter import DFApp
 
 from df_metadata_customizer.components.app_component import ScrollableAppComponent
 from df_metadata_customizer.song_metadata import MetadataFields, SongMetadata
@@ -11,6 +15,17 @@ from df_metadata_customizer.song_metadata import MetadataFields, SongMetadata
 
 class MetadataEditorComponent(ScrollableAppComponent):
     """Component for editing song metadata (properties + JSON)."""
+
+    def __init__(
+        self,
+        parent: ctk.CTkBaseClass,
+        app: "DFApp",
+        on_change: Callable[[], None] | None = None,
+        **kwargs: dict,
+    ) -> None:
+        """Initialize the MetadataEditorComponent."""
+        self.on_change = on_change
+        super().__init__(parent, app, **kwargs)
 
     KEY_MAP: Final = {
         MetadataFields.UI_TITLE: MetadataFields.TITLE,
@@ -111,14 +126,16 @@ class MetadataEditorComponent(ScrollableAppComponent):
 
         self.entries[key] = entry
 
-    def load_metadata(self, metadata: SongMetadata | None) -> None:
+    def load_metadata(self, metadata: SongMetadata | None, *, update_original: bool = True) -> None:
         """Load metadata into fields."""
-        self.original_values = {}
+        if update_original:
+            self.original_values = {}
 
         if metadata:
             for key, _ in self.ID3_FIELDS + self.JSON_FIELDS:
                 val = metadata.get(key)
-                self.original_values[key] = val
+                if update_original:
+                    self.original_values[key] = val
 
                 entry = self.entries[key]
                 entry.delete(0, "end")
@@ -151,6 +168,8 @@ class MetadataEditorComponent(ScrollableAppComponent):
     def _on_text_change(self, key: str) -> None:
         """Check if value changed and update UI."""
         self._update_entry_state(key)
+        if self.on_change:
+            self.on_change()
 
     def _update_entry_state(self, key: str) -> None:
         """Update entry visual state based on modification."""

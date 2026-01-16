@@ -76,7 +76,11 @@ class SongEditComponent(AppComponent):
         self.cover_component.grid(row=0, column=0, padx=5, pady=5)
 
         # Metadata Editor (left-justified, expands)
-        self.metadata_editor = MetadataEditorComponent(self.content_frame, self.app)
+        self.metadata_editor = MetadataEditorComponent(
+            self.content_frame,
+            self.app,
+            on_change=self._check_for_changes,
+        )
         self.metadata_editor.grid(row=1, column=0, sticky="nsew", padx=5, pady=0)
 
         # 4. Message Area (above controls)
@@ -98,6 +102,10 @@ class SongEditComponent(AppComponent):
 
         self.btn_add = ctk.CTkButton(self.controls_frame, text="Add Song", command=self.start_add_song_flow, width=100)
         self.btn_add.pack(side="left", padx=5, anchor="s")
+
+        # Save default button colors
+        self._btn_add_default_fg = self.btn_add.cget("fg_color")
+        self._btn_add_default_hover = self.btn_add.cget("hover_color")
 
         self.btn_copy = ctk.CTkButton(
             self.controls_frame,
@@ -121,6 +129,19 @@ class SongEditComponent(AppComponent):
         )
         self.btn_confirm.pack(side="right", padx=5, anchor="s")
 
+    def _check_for_changes(self) -> None:
+        """Check for pending changes and update confirm button."""
+        has_changes = self.metadata_editor.has_unsaved_changes()
+
+        title = self.current_metadata.raw_data.get(MetadataFields.TITLE) or Path(self.current_metadata.path).stem
+
+        if self.adding_new_song or has_changes:
+            self.title_label.configure(text=f"[Unsaved] {title}", text_color=("#FFB300", "#FF8F00"))
+            self.btn_confirm.configure(state="normal")
+        else:
+            self.title_label.configure(text=title, text_color=("gray20", "gray80"))
+            self.btn_confirm.configure(state="disabled")
+
     def update_view(self, metadata: SongMetadata | None, *, forced: bool = False) -> None:
         """Update the view with a song metadata object."""
         # Check copy mode
@@ -135,12 +156,11 @@ class SongEditComponent(AppComponent):
 
         if metadata:
             # Update title
-            title = metadata.raw_data.get(MetadataFields.TITLE) or Path(metadata.path).stem
-            self.title_label.configure(text=title)
-
             self._update_header_text(metadata.path)
-            self.metadata_editor.load_metadata(metadata)
-            self.btn_confirm.configure(state="normal")
+
+            should_update_originals = forced or not self.adding_new_song
+            self.metadata_editor.load_metadata(metadata, update_original=should_update_originals)
+            self._check_for_changes()
 
             # If we are just viewing, we reset pending states unless we are "Adding"
             if not self.adding_new_song:
@@ -151,7 +171,7 @@ class SongEditComponent(AppComponent):
             self.info_label.configure(text="")
             self.metadata_editor.load_metadata(None)
             self.cover_component.update_image(None)
-            self.btn_confirm.configure(state="disabled")
+            self._check_for_changes()
 
     def _update_header_text(self, path: str) -> None:
         """Update info label text."""
@@ -185,8 +205,42 @@ class SongEditComponent(AppComponent):
         if not self.is_copy_mode:
             self.cover_component.show_error(message)
 
+    def _reload_selected_song(self) -> None:
+        """Reload the currently selected song from the app."""
+        selected_items = self.app.tree_component.tree.selection()
+        if selected_items:
+            try:
+                # Tree selection returns IIDs which are ints in our app
+                iid = selected_items[0]
+                idx = int(iid)
+                if 0 <= idx < len(self.app.song_files):
+                    path = self.app.song_files[idx]
+                    metadata = self.app.file_manager.get_metadata(path)
+                    self.update_view(metadata)
+                    return
+            except (ValueError, IndexError):
+                pass
+
+        # No selection or invalid
+        self.update_view(None)
+
     def start_add_song_flow(self) -> None:
         """Handle 'Add Song' button click."""
+        if self.adding_new_song:
+            # Cancel Logic
+            self.adding_new_song = False
+            self.new_song_source_path = None
+            self.pending_cover_path = None
+
+            # Reset UI
+            self.btn_add.configure(
+                text="Add Song",
+                fg_color=self._btn_add_default_fg,
+                hover_color=self._btn_add_default_hover,
+            )
+            self._reload_selected_song()
+            return
+
         file_path = filedialog.askopenfilename(
             title="Select Song to Add",
             filetypes=[("Audio Files", [f"*{ext}" for ext in song_utils.SUPPORTED_FILES_TYPES])],
@@ -196,6 +250,9 @@ class SongEditComponent(AppComponent):
 
         self.adding_new_song = True
         self.new_song_source_path = file_path
+
+        # Update button to Cancel state
+        self.btn_add.configure(text="Cancel Add", fg_color="red", hover_color="darkred")
 
         # Load metadata from this file
         data = self.app.file_manager.get_metadata(file_path)
@@ -262,7 +319,7 @@ class SongEditComponent(AppComponent):
         self.copy_label.configure(text=completion_msg, text_color=["#FFC107", "#FFA000"])
 
         self.toggle_copy_mode()  # Turn off
-        self.btn_confirm.configure(state="normal")
+        self._check_for_changes()
 
     def change_cover_art(self) -> None:
         """Handle clicking the cover art."""
@@ -501,7 +558,7 @@ class SongEditComponent(AppComponent):
                         self.app.populate_tree_fast()
 
                 except Exception as e:
-                    logger.error(f"Failed to add new song to view: {e}")
+                    logger.exception("Failed to add new song to view")
 
             # Commit and Refresh
             self.app.file_manager.commit()
@@ -511,6 +568,13 @@ class SongEditComponent(AppComponent):
             self.pending_cover_path = None
             self.is_copy_mode = False
             self.btn_confirm.configure(state="disabled")
+
+            # Reset Add Button state
+            self.btn_add.configure(
+                text="Add Song",
+                fg_color=self._btn_add_default_fg,
+                hover_color=self._btn_add_default_hover,
+            )
 
             messagebox.showinfo("Success", "Changes saved successfully.")
             self.app.refresh_tree()
