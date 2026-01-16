@@ -9,6 +9,7 @@ import customtkinter as ctk
 from df_metadata_customizer.components.app_component import AppComponent
 from df_metadata_customizer.dialogs.duplication_check import DuplicationCheckDialog
 from df_metadata_customizer.dialogs.export import ExportDialog
+from df_metadata_customizer.dialogs.preferences import PreferencesDialog
 from df_metadata_customizer.settings_manager import SettingsManager
 
 
@@ -75,6 +76,8 @@ class AppMenuComponent(AppComponent):
         self.export_menu.add_command(label="JSON", command=self._show_export_dialog)
         self.file_menu.add_cascade(label="Export", menu=self.export_menu)
 
+        self.file_menu.add_separator()
+        self.file_menu.add_command(label="Preferences", command=self._show_preferences_dialog)
         self.file_menu.add_command(
             label="Save Settings",
             command=lambda: [self.app.save_settings(), messagebox.showinfo("Settings", "Settings saved successfully.")],
@@ -166,3 +169,7 @@ class AppMenuComponent(AppComponent):
             return
 
         ExportDialog(self.app)
+
+    def _show_preferences_dialog(self) -> None:
+        """Show preferences dialog."""
+        PreferencesDialog(self.app)

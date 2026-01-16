@@ -557,7 +557,7 @@ class SongEditComponent(AppComponent):
                         self.app.song_files.append(path_str)
                         self.app.populate_tree_fast()
 
-                except Exception as e:
+                except Exception:
                     logger.exception("Failed to add new song to view")
 
             # Commit and Refresh
