@@ -5,7 +5,7 @@ import logging
 import shutil
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 import customtkinter as ctk
 
@@ -18,13 +18,13 @@ class SettingsManager:
     APP_NAME = "df_metadata_customizer"
 
     # Settings
-    theme: str = "System"
-    last_folder_opened: str | None = None
-    auto_reopen_last_folder: bool | None = None
-    sash_ratio: float | None = None
-    column_order: list[str] | None = None
-    column_widths: dict[str, int] = {}
-    sort_rules: list[dict[str, Any]] = []
+    theme: ClassVar[str] = "System"
+    last_folder_opened: ClassVar[str | None] = None
+    auto_reopen_last_folder: ClassVar[bool | None] = None
+    sash_ratio: ClassVar[float | None] = None
+    column_order: ClassVar[list[str] | None] = None
+    column_widths: ClassVar[dict[str, int]] = {}
+    sort_rules: ClassVar[list[dict[str, Any]]] = []
 
     @classmethod
     def initialize(cls) -> None:
