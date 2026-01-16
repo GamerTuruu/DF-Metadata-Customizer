@@ -1,5 +1,6 @@
 """Metadata Editor Component for Song Edit Section."""
 
+import platform
 from typing import Final, override
 
 import customtkinter as ctk
@@ -55,6 +56,25 @@ class MetadataEditorComponent(ScrollableAppComponent):
         """Build the UI for the component."""
         self.grid_columnconfigure(1, weight=1)
         self._create_widgets()
+
+        if platform.system() == "Linux":
+            self.bind("<Enter>", lambda _e: self._setup_scroll_events())
+
+    def _setup_scroll_events(self) -> None:
+        """Set up mouse wheel scrolling for a scrollable frame."""
+        if not hasattr(self, "_parent_canvas"):
+            return
+
+        if platform.system() == "Linux" and self.winfo_viewable():
+
+            def _scroll(amount: int) -> None:
+                if self._parent_canvas.yview() != (0.0, 1.0):
+                    self._parent_canvas.yview("scroll", amount, "units")
+
+            self.bind_all("<Button-4>", lambda _: _scroll(-1))
+            self.bind_all("<Button-5>", lambda _: _scroll(1))
+
+            self.unbind("<Enter>")
 
     def _create_widgets(self) -> None:
         """Create entry widgets for fields."""
