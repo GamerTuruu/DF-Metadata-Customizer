@@ -34,6 +34,7 @@ jobs:
       - name: Set up UV
         uses: astral-sh/setup-uv@681c641aba71e4a1c380be3ab5e12ad51f415867 # v7.1.6
         with:
+          version: "0.9.24" # Temporarily use old version for TCL 8
           activate-environment: true
 
       - name: Install dependencies
