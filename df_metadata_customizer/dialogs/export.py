@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 import customtkinter as ctk
 
 from df_metadata_customizer import song_utils
+from df_metadata_customizer.dialogs.app_dialog import AppDialog
 from df_metadata_customizer.dialogs.progress import ProgressDialog
 
 if TYPE_CHECKING:
@@ -17,36 +18,13 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class ExportDialog(ctk.CTkToplevel):
+class ExportDialog(AppDialog):
     """Dialog to export metadata to JSON files."""
 
     def __init__(self, parent: "DFApp") -> None:
         """Initialize the export dialog."""
-        super().__init__(parent)
+        super().__init__(parent, "Export Metadata", geometry="450x250")
         self.app = parent
-        self.title("Export Metadata")
-        self.geometry("450x250")
-        self.resizable(width=False, height=False)
-
-        # Center the dialog
-        self.transient(parent)
-
-        self.update_idletasks()
-        parent.update_idletasks()
-
-        # Center the window
-        parent_x = parent.winfo_x()
-        parent_y = parent.winfo_y()
-        parent_width = parent.winfo_width()
-        parent_height = parent.winfo_height()
-
-        width = self.winfo_width()
-        height = self.winfo_height()
-
-        x = parent_x + (parent_width - width) // 2
-        y = parent_y + (parent_height - height) // 2
-        self.geometry(f"+{x}+{y}")
-
         self.export_folder: str | None = None
 
         # UI Elements

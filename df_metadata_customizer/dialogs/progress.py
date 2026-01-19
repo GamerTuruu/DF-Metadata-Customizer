@@ -2,35 +2,15 @@
 
 import customtkinter as ctk
 
+from df_metadata_customizer.dialogs.app_dialog import AppDialog
 
-class ProgressDialog(ctk.CTkToplevel):
+
+class ProgressDialog(AppDialog):
     """Display the progress of a generic operation."""
 
     def __init__(self, parent: ctk.CTk, title: str = "Processing...") -> None:
         """Display the progress of a generic operation."""
-        super().__init__(parent)
-        self.title(title)
-        self.geometry("400x120")
-        self.resizable(width=False, height=False)
-
-        # Center the dialog
-        self.transient(parent)
-
-        self.update_idletasks()
-        parent.update_idletasks()
-
-        # Center the window
-        parent_x = parent.winfo_x()
-        parent_y = parent.winfo_y()
-        parent_width = parent.winfo_width()
-        parent_height = parent.winfo_height()
-
-        width = self.winfo_width()
-        height = self.winfo_height()
-
-        x = parent_x + (parent_width - width) // 2
-        y = parent_y + (parent_height - height) // 2
-        self.geometry(f"+{x}+{y}")
+        super().__init__(parent, title, geometry="400x120")
 
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(0, weight=1)

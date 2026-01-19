@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 import customtkinter as ctk
 
 from df_metadata_customizer import song_utils
+from df_metadata_customizer.dialogs.app_dialog import AppDialog
 from df_metadata_customizer.dialogs.progress import ProgressDialog
 from df_metadata_customizer.settings_manager import SettingsManager
 
@@ -18,35 +19,13 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class DuplicationCheckDialog(ctk.CTkToplevel):
+class DuplicationCheckDialog(AppDialog):
     """Dialog to check for duplicate songs."""
 
     def __init__(self, parent: "DFApp") -> None:
         """Initialize the duplication check dialog."""
-        super().__init__(parent)
+        super().__init__(parent, "Duplication Check", geometry="450x200")
         self.app = parent
-        self.title("Duplication Check")
-        self.geometry("450x200")
-        self.resizable(width=False, height=False)
-
-        # Center the dialog
-        self.transient(parent)
-
-        self.update_idletasks()
-        parent.update_idletasks()
-
-        # Center the window
-        parent_x = parent.winfo_x()
-        parent_y = parent.winfo_y()
-        parent_width = parent.winfo_width()
-        parent_height = parent.winfo_height()
-
-        width = self.winfo_width()
-        height = self.winfo_height()
-
-        x = parent_x + (parent_width - width) // 2
-        y = parent_y + (parent_height - height) // 2
-        self.geometry(f"+{x}+{y}")
 
         # UI Elements
         self.grid_columnconfigure(0, weight=1)

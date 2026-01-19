@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 
 import customtkinter as ctk
 
+from df_metadata_customizer.dialogs.app_dialog import AppDialog
 from df_metadata_customizer.settings_manager import SettingsManager
 
 if TYPE_CHECKING:
@@ -13,38 +14,16 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class PreferencesDialog(ctk.CTkToplevel):
+class PreferencesDialog(AppDialog):
     """Dialog to edit application preferences."""
 
     def __init__(self, parent: "DFApp") -> None:
         """Initialize the preferences dialog."""
-        super().__init__(parent)
+        super().__init__(parent, "Preferences", geometry="400x200")
         self.app = parent
-        self.title("Preferences")
-        self.geometry("400x200")
-        self.resizable(width=False, height=False)
-
-        # Center the dialog
-        self.transient(parent)
 
         # Make modal
         self.grab_set()
-
-        self.update_idletasks()
-        parent.update_idletasks()
-
-        # Center the window
-        parent_x = parent.winfo_x()
-        parent_y = parent.winfo_y()
-        parent_width = parent.winfo_width()
-        parent_height = parent.winfo_height()
-
-        width = self.winfo_width()
-        height = self.winfo_height()
-
-        x = parent_x + (parent_width - width) // 2
-        y = parent_y + (parent_height - height) // 2
-        self.geometry(f"+{x}+{y}")
 
         # UI Elements
         self.grid_columnconfigure(0, weight=1)

@@ -4,8 +4,10 @@ import tkinter as tk
 
 import customtkinter as ctk
 
+from df_metadata_customizer.dialogs.app_dialog import AppDialog
 
-class ConfirmDialog(ctk.CTkToplevel):
+
+class ConfirmDialog(AppDialog):
     """A confirmation dialog with an optional checkbox."""
 
     def __init__(
@@ -16,31 +18,10 @@ class ConfirmDialog(ctk.CTkToplevel):
         checkbox_text: str = "Remember my choice",
     ) -> None:
         """Initialize the dialog."""
-        super().__init__(parent)
-        self.title(title)
-        self.geometry("400x200")
-        self.resizable(width=False, height=False)
+        super().__init__(parent, title, geometry="400x200")
 
         self.result = False
         self.checkbox_checked = False
-
-        # Center the dialog on the parent
-        self.transient(parent)
-
-        self.update_idletasks()
-        parent.update_idletasks()
-
-        parent_x = parent.winfo_x()
-        parent_y = parent.winfo_y()
-        parent_width = parent.winfo_width()
-        parent_height = parent.winfo_height()
-
-        width = self.winfo_width()
-        height = self.winfo_height()
-
-        x = parent_x + (parent_width - width) // 2
-        y = parent_y + (parent_height - height) // 2
-        self.geometry(f"+{x}+{y}")
 
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(0, weight=1)

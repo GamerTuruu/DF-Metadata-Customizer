@@ -4,21 +4,17 @@ import logging
 
 import customtkinter as ctk
 
+from df_metadata_customizer.dialogs.app_dialog import AppDialog
+
 logger = logging.getLogger(__name__)
 
 
-class StatisticsDialog(ctk.CTkToplevel):
+class StatisticsDialog(AppDialog):
     """Popup window to show various song statistics."""
 
     def __init__(self, parent: ctk.CTk, stats: dict[str, int]) -> None:
         """Popup window to show various song statistics."""
-        super().__init__(parent)
-        self.title("Song Statistics")
-        self.geometry("320x520")  # Slightly taller
-        self.resizable(width=False, height=False)
-
-        # Make it transient first
-        self.transient(parent)
+        super().__init__(parent, "Song Statistics", geometry="320x520")
 
         # Configure grid
         self.grid_columnconfigure(0, weight=1)
