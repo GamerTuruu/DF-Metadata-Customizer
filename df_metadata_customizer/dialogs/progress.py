@@ -74,7 +74,6 @@ class ProgressDialog(ctk.CTkToplevel):
 
         # Force update
         self.update_idletasks()
-        self.update()
         return True
 
     def cancel(self) -> None:
@@ -82,4 +81,4 @@ class ProgressDialog(ctk.CTkToplevel):
         self.cancelled = True
         self.label.configure(text="Cancelling...")
         self.cancel_button.configure(state="disabled")
-        self.update()
+        self.update_idletasks()
