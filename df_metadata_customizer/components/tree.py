@@ -1,14 +1,20 @@
 """Tree View Component."""
 
 import contextlib
+import json
 import logging
+import os
+import platform
+import subprocess
 import tkinter as tk
+from pathlib import Path
 from tkinter import messagebox, ttk
 from typing import override
 
-from df_metadata_customizer import mp3_utils
+from df_metadata_customizer import song_utils
 from df_metadata_customizer.components.app_component import AppComponent
 from df_metadata_customizer.rule_manager import RuleManager
+from df_metadata_customizer.settings_manager import SettingsManager
 from df_metadata_customizer.song_metadata import MetadataFields
 
 logger = logging.getLogger(__name__)
@@ -50,7 +56,6 @@ class TreeComponent(AppComponent):
 
         # Configure treeview style - will be updated by theme
         self.style = ttk.Style()
-        self.update_theme()
 
         # Configure columns
         column_configs = {
@@ -79,6 +84,14 @@ class TreeComponent(AppComponent):
         # Double-click to play song
         self.tree.bind("<Double-1>", self.on_tree_double_click)
 
+        # Right-click context menu
+        self.tree.bind("<Button-3>", self.on_tree_right_click)
+        self.context_menu = tk.Menu(self, tearoff=0)
+        self.context_menu.add_command(label="Copy", command=lambda: None)
+        self.context_menu.add_command(label="Copy JSON", command=lambda: None)
+        self.context_menu.add_separator()
+        self.context_menu.add_command(label="Open File Location", command=lambda: None)
+
         # Vertical scrollbar
         self.tree_scroll_v = ttk.Scrollbar(self, orient="vertical", command=self.tree.yview)
         self.tree.configure(yscrollcommand=self.tree_scroll_v.set)
@@ -92,10 +105,15 @@ class TreeComponent(AppComponent):
         self.tree_scroll_v.grid(row=0, column=1, sticky="ns")
         self.tree_scroll_h.grid(row=1, column=0, sticky="ew")
 
+        # Apply theme
+        self.update_theme()
+
     @override
     def update_theme(self) -> None:
         try:
-            dark = self.app.is_dark_mode
+            dark = SettingsManager.is_dark_mode()
+
+            # Treeview
             self.style.theme_use("default")
             self.style.configure(
                 "Treeview",
@@ -118,6 +136,15 @@ class TreeComponent(AppComponent):
                 "Treeview.Heading",
                 background=[("active", "#4b4b4b" if dark else "#e0e0e0")],
             )
+
+            # Context menu
+            self.context_menu.configure(
+                background="#2b2b2b" if dark else "white",
+                foreground="white" if dark else "black",
+                activebackground="#1f6aa5" if dark else "#0078d7",
+                activeforeground="white",
+            )
+
         except Exception:
             logger.exception("Error updating treeview style")
 
@@ -136,6 +163,82 @@ class TreeComponent(AppComponent):
                 self.tree.bind("<B1-Motion>", self.on_column_drag)
                 self.tree.bind("<ButtonRelease-1>", self.on_column_drop)
 
+    def on_tree_right_click(self, event: tk.Event) -> None:
+        """Handle right-click context menu to copy cell value."""
+        region = self.tree.identify_region(event.x, event.y)
+        if region == "cell":
+            row_id = self.tree.identify_row(event.y)
+            col = self.tree.identify_column(event.x)
+
+            if row_id and col:
+                try:
+                    # Determine column index from identifier like '#1'
+                    col_index = int(col.replace("#", "")) - 1
+                    values = self.tree.item(row_id, "values")
+
+                    if 0 <= col_index < len(values):
+                        # Get column name
+                        col_id = self.column_order[col_index]
+                        col_name = self.tree.heading(col_id, "text")
+
+                        value = str(values[col_index])
+
+                        # Copy <Col>
+                        self.context_menu.entryconfigure(
+                            0,
+                            label=f"Copy {col_name}",
+                            command=lambda: self.copy_to_clipboard(value),
+                        )
+
+                        try:
+                            idx = int(row_id)
+                            path = self.app.song_files[idx]
+
+                            # Open File Location
+                            self.context_menu.entryconfigure(
+                                3,
+                                state="normal",
+                                command=lambda: self.open_file_location(path),
+                            )
+
+                            # Copy JSON
+                            try:
+                                metadata = self.app.file_manager.get_metadata(path)
+                                json_data = json.dumps(metadata.raw_data, indent=2)
+                                self.context_menu.entryconfigure(
+                                    1,
+                                    state="normal",
+                                    command=lambda: self.copy_to_clipboard(json_data),
+                                )
+                            except Exception:
+                                self.context_menu.entryconfigure(1, state="disabled")
+                        except Exception:
+                            self.context_menu.entryconfigure(1, state="disabled")
+                            self.context_menu.entryconfigure(3, state="disabled")
+
+                        self.context_menu.tk_popup(event.x_root, event.y_root)
+                except ValueError:
+                    pass
+
+    def open_file_location(self, file_path: str) -> None:
+        """Open the file explorer with the given file selected."""
+        try:
+            path = os.path.normpath(file_path)
+            if platform.system() == "Windows":
+                subprocess.Popen(["explorer", "/select,", path])
+            elif platform.system() == "Darwin":  # macOS
+                subprocess.Popen(["open", "-R", path])
+            else:  # Linux and others
+                subprocess.Popen(["xdg-open", Path(path).parent])
+        except Exception as e:
+            messagebox.showerror("Error", f"Could not open file location:\n{e}")
+
+    def copy_to_clipboard(self, text: str) -> None:
+        """Copy text to system clipboard."""
+        self.clipboard_clear()
+        self.clipboard_append(text)
+        self.update()  # Required to finalize clipboard update
+
     def on_tree_double_click(self, _event: tk.Event) -> None:
         """Play the selected song when double-clicked."""
         sel = self.tree.selection()
@@ -148,12 +251,12 @@ class TreeComponent(AppComponent):
         except Exception:
             return
 
-        if idx < 0 or idx >= len(self.app.mp3_files):
+        if idx < 0 or idx >= len(self.app.song_files):
             return
 
         try:
-            if not mp3_utils.play_song(self.app.mp3_files[idx]):
-                mp3_utils.show_audio_player_instructions()
+            if not song_utils.play_song(self.app.song_files[idx]):
+                song_utils.show_audio_player_instructions()
         except Exception as e:
             messagebox.showerror("Playback Error", f"Could not play file:\n{e!s}")
 
@@ -177,7 +280,7 @@ class TreeComponent(AppComponent):
                             self.tree.heading(self.highlighted_column, background="")
                     # set new highlight (color depends on theme)
                     try:
-                        hl = "#4b94d6" if (self.app.current_theme == "Light") else "#3b6ea0"
+                        hl = "#4b94d6" if (SettingsManager.theme == "Light") else "#3b6ea0"
                         self.tree.heading(target, background=hl)
                         self.highlighted_column = target
                     except Exception:
@@ -265,7 +368,7 @@ class TreeComponent(AppComponent):
                 # Reapply preserved width/stretch to avoid reset after reorder
                 self.tree.column(col, width=width, anchor=anchor, stretch=stretch)
             except Exception:
-                pass
+                logger.exception("Error configuring tree column")
 
         # Remap existing item values from prev_columns -> new_columns
         try:
@@ -285,7 +388,7 @@ class TreeComponent(AppComponent):
                 new_vals = [vals_map.get(name, "") for name in new_columns]
                 self.tree.item(iid, values=tuple(new_vals))
         except Exception:
-            pass
+            logger.exception("Error remapping tree item values")
 
         # Restore selection and scroll position
         if selection:
@@ -295,7 +398,7 @@ class TreeComponent(AppComponent):
             self.tree.yview_moveto(scroll_v[0])
             self.tree.xview_moveto(scroll_h[0])
         except Exception:
-            pass
+            logger.exception("Error restoring scroll position")
 
     def get_row_values(self, row: dict) -> tuple:
         """Extract and format values for treeview columns from a data row."""

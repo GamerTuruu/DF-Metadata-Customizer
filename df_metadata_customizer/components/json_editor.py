@@ -10,9 +10,10 @@ from typing import TYPE_CHECKING, override
 
 import customtkinter as ctk
 
-from df_metadata_customizer import mp3_utils
+from df_metadata_customizer import song_utils
 from df_metadata_customizer.components.app_component import AppComponent
 from df_metadata_customizer.file_manager import FileManager
+from df_metadata_customizer.settings_manager import SettingsManager
 
 if TYPE_CHECKING:
     from df_metadata_customizer.song_metadata import SongMetadata
@@ -26,13 +27,12 @@ class JSONEditComponent(AppComponent):
 
     @override
     def setup_ui(self) -> None:
-        self.grid_columnconfigure(0, weight=2)
-        self.grid_columnconfigure(1, weight=1)
+        self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(0, weight=1)
 
         # JSON viewer
         json_frame = ctk.CTkFrame(self)
-        json_frame.grid(row=0, column=0, sticky="nsew", padx=(0, 6))
+        json_frame.grid(row=0, column=0, sticky="nsew", padx=0, pady=0)
         json_frame.grid_rowconfigure(1, weight=1)
         json_frame.grid_columnconfigure(0, weight=1)
         json_frame.grid_columnconfigure(1, weight=0)
@@ -60,18 +60,10 @@ class JSONEditComponent(AppComponent):
         self.json_text.configure(yscrollcommand=self.json_scroll.set)
         self.json_scroll.grid(row=1, column=1, sticky="ns", pady=(0, 6))
 
-        # Cover preview
-        cover_frame = ctk.CTkFrame(self)
-        cover_frame.grid(row=0, column=1, sticky="nsew")
-        cover_frame.grid_rowconfigure(0, weight=1)
-
-        self.cover_display = ctk.CTkLabel(cover_frame, text="Loading cover...", corner_radius=8, justify="center")
-        self.cover_display.grid(row=0, column=0, padx=6, pady=6, sticky="nsew")
-
     @override
     def update_theme(self) -> None:
         try:
-            if self.app.is_dark_mode:
+            if SettingsManager.is_dark_mode():
                 self.json_text.configure(bg="#2b2b2b", fg="white", insertbackground="white", selectbackground="#1f6aa5")
             else:
                 self.json_text.configure(bg="white", fg="black", insertbackground="black", selectbackground="#0078d7")
@@ -129,8 +121,8 @@ class JSONEditComponent(AppComponent):
             self.json_save_btn.configure(state="disabled")
 
     def save_json_to_file(self) -> None:
-        """Save the edited JSON back to the current MP3 file."""
-        if self.app.current_index is None or not self.app.mp3_files:
+        """Save the edited JSON back to the current song file."""
+        if self.app.current_index is None or not self.app.song_files:
             messagebox.showwarning("No file selected", "Please select a file first")
             return
 
@@ -150,7 +142,7 @@ class JSONEditComponent(AppComponent):
             return
 
         # Confirm save
-        path = self.app.mp3_files[self.app.current_index]
+        path = self.app.song_files[self.app.current_index]
         filename = Path(path).name
         result = messagebox.askyesno("Confirm Save", f"Save JSON changes to:\n{filename}?")
 
@@ -184,5 +176,5 @@ class JSONEditComponent(AppComponent):
                 messagebox.showerror("Error", f"Failed to save JSON to {filename}")
 
         # Save JSON
-        saved = mp3_utils.write_json_to_mp3(path, full_comment)
+        saved = song_utils.write_json_to_song(path, full_comment)
         self.after(0, lambda: on_save_complete(filename, success=saved))

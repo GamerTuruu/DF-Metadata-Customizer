@@ -23,7 +23,7 @@ class RuleTabsComponent(AppComponent):
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(0, weight=1)
 
-        self.tabview = ctk.CTkTabview(self)
+        self.tabview = ctk.CTkTabview(self, command=self._on_tab_changed)
         self.tabview.grid(row=0, column=0, sticky="nsew", padx=0, pady=0)
 
         for name in ("Title", "Artist", "Album"):
@@ -62,6 +62,14 @@ class RuleTabsComponent(AppComponent):
             self._setup_scroll_events(scroll)
             self.rule_containers[name.lower()] = scroll
 
+    def _on_tab_changed(self) -> None:
+        """Handle tab change events to update scroll bindings."""
+        current_tab = self.tabview.get().lower()
+        container = self.rule_containers.get(current_tab)
+        if container:
+            container.update()
+            self._setup_scroll_events(container)
+
     def add_rule_to_tab(self, tab_name: str) -> None:
         """Add a rule to the specified tab - UPDATED: With rule limit check."""
         container = self.rule_containers.get(tab_name.lower())
@@ -97,9 +105,6 @@ class RuleTabsComponent(AppComponent):
         )
         row.pack(fill="x", padx=6, pady=3)
 
-        # Rebind scroll events to the container to include the new rule
-        self._setup_scroll_events(container)
-
         # default template suggestions based on container tab
         parent_tab = self.container_to_tab(container)
         if parent_tab == "title":
@@ -110,7 +115,7 @@ class RuleTabsComponent(AppComponent):
             row.template_entry.insert(0, f"Archive VOL {{{MetadataFields.DISC}}}")
 
         # FIXED: Use force preview update for immediate response
-        def update_callback(*args) -> None:
+        def update_callback(*_args: tuple) -> None:
             self.app.output_preview_component.update_preview()
 
         row.field_var.trace("w", update_callback)
@@ -158,11 +163,8 @@ class RuleTabsComponent(AppComponent):
             child.set_first(is_first=i == 0)
             child.set_button_states(is_top=i == 0, is_bottom=i == len(children) - 1)
 
-        # Rebind scroll events after reordering
-        self._setup_scroll_events(container)
-
     def delete_rule(self, widget: RuleRow) -> None:
-        """Delete a rule from its container - UPDATED: With button state update."""
+        """Delete a rule from its container."""
         container = widget.master
         children = [w for w in container.winfo_children() if isinstance(w, RuleRow)]
 
@@ -174,9 +176,6 @@ class RuleTabsComponent(AppComponent):
 
         # Update button states for remaining rules
         self.after(0, lambda: self.update_rule_button_states(container))
-
-        # Rebind scroll events after deletion
-        self._setup_scroll_events(container)
 
         # Update button states after deletion (rules are now below limit)
         self.update_rule_tab_buttons()
@@ -206,16 +205,21 @@ class RuleTabsComponent(AppComponent):
                         else:
                             add_button.configure(state="normal")
 
+            self._setup_scroll_events(container)
+
     def _setup_scroll_events(self, scroll_frame: ctk.CTkScrollableFrame) -> None:
         """Set up mouse wheel scrolling for a scrollable frame."""
         if not hasattr(scroll_frame, "_parent_canvas"):
             return
 
-        root_window = scroll_frame.winfo_toplevel()
+        if platform.system() == "Linux" and scroll_frame.winfo_viewable():
 
-        if platform.system() == "Linux":
-            root_window.bind_all("<Button-4>", scroll_frame._mouse_wheel_all, add=True)  # noqa: SLF001
-            root_window.bind_all("<Button-5>", scroll_frame._mouse_wheel_all, add=True)  # noqa: SLF001
+            def _scroll(amount: int) -> None:
+                if scroll_frame._parent_canvas.yview() != (0.0, 1.0):  # noqa: SLF001
+                    scroll_frame._parent_canvas.yview("scroll", amount, "units")  # noqa: SLF001
+
+            scroll_frame.bind_all("<Button-4>", lambda _: _scroll(-1))
+            scroll_frame.bind_all("<Button-5>", lambda _: _scroll(1))
 
     def container_to_tab(self, container: ctk.CTkFrame) -> str:
         """Get tab name from container widget."""

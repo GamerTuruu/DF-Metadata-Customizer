@@ -5,7 +5,9 @@ import logging
 import shutil
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
+
+import customtkinter as ctk
 
 logger = logging.getLogger(__name__)
 
@@ -15,10 +17,20 @@ class SettingsManager:
 
     APP_NAME = "df_metadata_customizer"
 
+    # Settings
+    theme: ClassVar[str] = "System"
+    last_folder_opened: ClassVar[str | None] = None
+    auto_reopen_last_folder: ClassVar[bool | None] = None
+    sash_ratio: ClassVar[float | None] = None
+    column_order: ClassVar[list[str] | None] = None
+    column_widths: ClassVar[dict[str, int]] = {}
+    sort_rules: ClassVar[list[dict[str, Any]]] = []
+
     @classmethod
     def initialize(cls) -> None:
         """Initialize SettingsManager."""
         cls._extract_bundled()
+        cls.load_settings()
 
     @classmethod
     def _extract_bundled(cls) -> None:
@@ -58,8 +70,17 @@ class SettingsManager:
         return folder
 
     @classmethod
-    def save_settings(cls, data: dict[str, Any]) -> None:
+    def save_settings(cls) -> None:
         """Save settings dictionary to JSON file."""
+        data = {
+            "theme": cls.theme,
+            "last_folder_opened": cls.last_folder_opened,
+            "auto_reopen_last_folder": cls.auto_reopen_last_folder,
+            "sash_ratio": cls.sash_ratio,
+            "column_order": cls.column_order,
+            "column_widths": cls.column_widths,
+            "sort_rules": cls.sort_rules,
+        }
         try:
             with cls.get_settings_path().open("w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2, ensure_ascii=False)
@@ -67,16 +88,24 @@ class SettingsManager:
             logger.exception("Error saving settings")
 
     @classmethod
-    def load_settings(cls) -> dict[str, Any]:
+    def load_settings(cls) -> None:
         """Load settings from JSON file."""
         if not cls.get_settings_path().exists():
-            return {}
+            return
         try:
             with cls.get_settings_path().open("r", encoding="utf-8") as f:
-                return json.load(f)
+                data = json.load(f)
+
+            cls.theme = data.get("theme", "System")
+            cls.last_folder_opened = data.get("last_folder_opened")
+            cls.auto_reopen_last_folder = data.get("auto_reopen_last_folder")
+            cls.sash_ratio = data.get("sash_ratio")
+            cls.column_order = data.get("column_order")
+            cls.column_widths = data.get("column_widths", {})
+            cls.sort_rules = data.get("sort_rules", [])
+
         except Exception:
             logger.exception("Error loading settings")
-            return {}
 
     @classmethod
     def save_preset(cls, name: str, preset_data: dict[str, list[dict[str, Any]]]) -> None:
@@ -115,8 +144,14 @@ class SettingsManager:
                 try:
                     vals.append(preset_file.stem)
                 except Exception:
+                    logger.exception("Error reading preset file name")
                     continue
             vals.sort()
         except Exception:
             return []
         return vals
+
+    @classmethod
+    def is_dark_mode(cls) -> bool:
+        """Check if current theme is dark mode."""
+        return cls.theme == "Dark" or (cls.theme == "System" and ctk.get_appearance_mode() == "Dark")

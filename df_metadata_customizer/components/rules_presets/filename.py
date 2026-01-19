@@ -38,8 +38,8 @@ class FilenameComponent(AppComponent):
 
     def on_update_filename_event(self, _event: tk.Event | None = None) -> None:
         """Update filename entry when event is triggered."""
-        if self.app.current_index is not None and self.app.mp3_files:
-            path = self.app.mp3_files[self.app.current_index]
+        if self.app.current_index is not None and self.app.song_files:
+            path = self.app.song_files[self.app.current_index]
             filename = Path(path).name
             self.update_filename(filename)
 
@@ -54,7 +54,7 @@ class FilenameComponent(AppComponent):
             self.filename_save_btn.configure(state="disabled")
             return
 
-        current_path = self.app.mp3_files[self.app.current_index]
+        current_path = self.app.song_files[self.app.current_index]
         current_filename = Path(current_path).name
         new_filename = self.filename_var.get().strip()
 

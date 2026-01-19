@@ -30,6 +30,14 @@ class MetadataFields(StrEnum):
     UI_SPECIAL = "special"
     UI_FILE = "file"
 
+    # ID3 specific UI keys
+    UI_ID3_TITLE = "id3_title"
+    UI_ID3_ARTIST = "id3_artist"
+    UI_ID3_ALBUM = "id3_album"
+    UI_ID3_TRACK = "id3_track"
+    UI_ID3_DISC = "id3_disc"
+    UI_ID3_DATE = "id3_date"
+
     @classmethod
     def get_json_keys(cls) -> list[str]:
         """Return list of all JSON keys."""
@@ -44,15 +52,40 @@ class MetadataFields(StrEnum):
 class SongMetadata:
     """A wrapper around song metadata that provides safe access and defaults."""
 
-    def __init__(self, data: dict, path: str, *, is_latest: bool = False) -> None:
+    def __init__(
+        self,
+        data: dict,
+        path: str,
+        *,
+        is_latest: bool = False,
+        id3_data: dict[str, str] | None = None,
+    ) -> None:
         """Initialize SongMetadata."""
         self._data = data
+        self._id3_data = id3_data or {}
         self.path = path
         self._is_latest = is_latest
 
     def get(self, field: str) -> str:
         """Get value from metadata using properties or raw data."""
         f = field.lower()
+
+        # ID3 overrides
+        if f == MetadataFields.UI_ID3_TITLE:
+            return self._id3_data.get("Title", "")
+        if f == MetadataFields.UI_ID3_ARTIST:
+            return self._id3_data.get("Artist", "")
+        if f == MetadataFields.UI_ID3_ALBUM:
+            return self._id3_data.get("Album", "")
+        if f == MetadataFields.UI_ID3_TRACK:
+            return self._id3_data.get("Track", "")
+        if f == MetadataFields.UI_ID3_DISC:
+            # Check both key variants just in case
+            return self._id3_data.get("Discnumber") or self._id3_data.get("Disc", "")
+        if f == MetadataFields.UI_ID3_DATE:
+            return self._id3_data.get("Date", "")
+
+        # JSON / Standard access
         if f == MetadataFields.UI_TITLE:
             return self.title
         if f == MetadataFields.UI_ARTIST:

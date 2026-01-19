@@ -49,7 +49,7 @@ class StatisticsComponent(AppComponent):
 
     def calculate_statistics(self) -> None:
         """Calculate comprehensive statistics about the loaded songs."""
-        if not self.app.mp3_files:
+        if not self.app.song_files:
             self.stats = dict.fromkeys(self.stats, 0)
             self._update_status_display()
             logger.debug("No files loaded, stats reset to 0")

@@ -1,6 +1,7 @@
 """Sorting Component."""
 
 import contextlib
+import logging
 from tkinter import messagebox
 from typing import override
 
@@ -9,6 +10,8 @@ import customtkinter as ctk
 from df_metadata_customizer.components.app_component import AppComponent
 from df_metadata_customizer.song_metadata import MetadataFields
 from df_metadata_customizer.widgets import SortRuleRow
+
+logger = logging.getLogger(__name__)
 
 
 class SortingComponent(AppComponent):
@@ -137,7 +140,7 @@ class SortingComponent(AppComponent):
                 else:
                     rule.sort_label.configure(text="then by:")
             except Exception:
-                pass
+                logger.exception("Error updating sort rule label")
 
     def update_sort_rule_buttons(self) -> None:
         """Update button visibility for sort rules."""

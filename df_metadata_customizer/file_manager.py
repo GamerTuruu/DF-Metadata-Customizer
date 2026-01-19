@@ -6,7 +6,7 @@ from pathlib import Path
 
 import polars as pl
 
-from df_metadata_customizer import mp3_utils
+from df_metadata_customizer import song_utils
 from df_metadata_customizer.song_metadata import MetadataFields, SongMetadata
 
 
@@ -147,7 +147,7 @@ class FileManager:
                 return row["raw_json"]
 
         # Not found, load from disk
-        jsond = mp3_utils.extract_json_from_mp3(file_path) or {}
+        jsond = song_utils.extract_json_from_song(file_path) or {}
 
         if jsond:
             cleaned_jsond = {}
@@ -187,7 +187,11 @@ class FileManager:
 
         is_latest = self.is_latest_version(song_id, version)
 
-        return SongMetadata(jsond, file_path, is_latest=is_latest)
+        # Load ID3 tags
+        # For now simply store them in memory, no Dataframe usage yet
+        id3_data = song_utils.get_id3_tags(file_path)
+
+        return SongMetadata(jsond, file_path, is_latest=is_latest, id3_data=id3_data)
 
     def get_view_data(self, paths: list[str]) -> pl.DataFrame:
         """Get data for specific paths in order, formatted for treeview."""
@@ -298,7 +302,7 @@ class FileManager:
 
     @staticmethod
     def prepare_json_for_save(json_text: str) -> tuple[str, dict]:
-        """Parse JSON text and prepare it for saving to MP3."""
+        """Parse JSON text and prepare it for saving to song metadata."""
         # Parse the JSON to validate it
         json_data = json.loads(json_text)
 

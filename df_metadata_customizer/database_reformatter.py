@@ -10,25 +10,28 @@ from tkinter import filedialog, messagebox, simpledialog
 from typing import TYPE_CHECKING, Final
 
 import customtkinter as ctk
-from PIL import Image
 from rich.logging import RichHandler
 
-from df_metadata_customizer import mp3_utils
+from df_metadata_customizer import song_utils
 from df_metadata_customizer.components import (
-    FilenameComponent,
+    AppMenuComponent,
     JSONEditComponent,
-    NavigationComponent,
-    OutputPreviewComponent,
-    PresetComponent,
-    RuleTabsComponent,
     SongControlsComponent,
+    SongEditComponent,
     SortingComponent,
     StatisticsComponent,
     TreeComponent,
 )
+from df_metadata_customizer.components.rules_presets import (
+    ApplyComponent,
+    FilenameComponent,
+    OutputPreviewComponent,
+    PresetComponent,
+    RuleTabsComponent,
+)
 from df_metadata_customizer.dialogs import ConfirmDialog, ProgressDialog
 from df_metadata_customizer.file_manager import FileManager
-from df_metadata_customizer.image_utils import LRUImageCache
+from df_metadata_customizer.image_utils import LRUCTKImageCache
 from df_metadata_customizer.rule_manager import RuleManager
 from df_metadata_customizer.settings_manager import SettingsManager
 from df_metadata_customizer.song_metadata import MetadataFields
@@ -48,7 +51,7 @@ logging_handler = RichHandler(
     rich_tracebacks=True,
 )
 logging.basicConfig(level=logging.DEBUG, format="%(message)s", handlers=[logging_handler])
-logging.getLogger("PIL").setLevel(logging.INFO) # Suppress PIL debug logs
+logging.getLogger("PIL").setLevel(logging.INFO)  # Suppress PIL debug logs
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +59,7 @@ logger = logging.getLogger(__name__)
 class DFApp(ctk.CTk):
     """Main application window for Database Reformatter.
 
-    Separated into components for modularity.
+    Separated into components.
     Logic between multiple separate components should be handled here.
     """
 
@@ -75,9 +78,15 @@ class DFApp(ctk.CTk):
         """Initialize the main application window."""
         super().__init__()
         self.title("Database Reformatter — Metadata Customizer")
-        width, height = 1350, 820
+
+        # Window size
+        if self.winfo_screenheight() >= 1440:  # 1440p+ -> 1080p
+            width, height = 1920, 1080
+        else:
+            width, height = 1280, 720
+
         self.geometry(f"{width}x{height}")
-        self.minsize(1100, 700)
+        self.minsize(960, 540)
 
         # Center the window
         self.update_idletasks()
@@ -89,22 +98,20 @@ class DFApp(ctk.CTk):
         self.file_manager = FileManager()
 
         # Data model
-        self.mp3_files = []  # list of file paths
+        self.song_files = []  # list of file paths
         self.current_index = None
+        self.current_folder: str | None = None
         self.current_metadata: SongMetadata | None = None
 
         self.visible_file_indices = []  # Track visible files for prev/next navigation
         self.progress_dialog = None  # Progress dialog reference
         self.operation_in_progress = False  # Prevent multiple operations
-        self.last_folder_opened = None  # Track last opened folder
-        self.auto_reopen_last_folder = None  # Auto-reopen last folder without prompt (None=Ask, True=Yes, False=No)
 
         # Theme management
-        self.current_theme = "System"  # Start with system theme
         self.theme_icon_cache = {}  # Cache for theme icons
 
         # Cover image settings - OPTIMIZED
-        self.cover_cache = LRUImageCache(max_size=50)  # Optimized cache
+        self.cover_cache = LRUCTKImageCache(max_size=50)  # Optimized cache
         self.last_cover_request_time = 0.0  # Track last cover request time for throttling
 
         # Maximum number of allowed sort rules (including the primary rule)
@@ -126,6 +133,10 @@ class DFApp(ctk.CTk):
             self.protocol("WM_DELETE_WINDOW", self._on_close)
 
     def _build_ui(self) -> None:
+        # Top Menu Bar
+        self.menu_component = AppMenuComponent(self, self)
+        self.menu_component.pack(side="top", fill="x")
+
         # Use a PanedWindow for draggable splitter
         self.paned = tk.PanedWindow(
             self,
@@ -169,51 +180,100 @@ class DFApp(ctk.CTk):
         self.lbl_file_info.grid(row=0, column=0, sticky="w")
 
         self.lbl_selection_info = ctk.CTkLabel(status_frame, text="0 song(s) selected")
-        self.lbl_selection_info.grid(row=0, column=1, sticky="e")
+        self.lbl_selection_info.grid(row=0, column=1, sticky="e", padx=(0, 8))
+
+        self.btn_prev = ctk.CTkButton(
+            status_frame,
+            text="◀ Prev",
+            width=70,
+            command=self.prev_file,
+        )
+        self.btn_prev.grid(row=0, column=2, sticky="e", padx=(0, 4))
+        self.btn_next = ctk.CTkButton(
+            status_frame,
+            text="Next ▶",
+            width=70,
+            command=self.next_file,
+        )
+        self.btn_next.grid(row=0, column=3, sticky="e")
 
         # Right (metadata & rules) frame
         self.right_frame = ctk.CTkFrame(self.paned, corner_radius=8)
         self.paned.add(self.right_frame, minsize=480)
 
         self.right_frame.grid_columnconfigure(0, weight=1)
-        self.right_frame.grid_rowconfigure(1, weight=1)  # tab area expands
-        self.right_frame.grid_rowconfigure(2, weight=2)  # preview area expands
+        self.right_frame.grid_rowconfigure(2, weight=1)
+
+        # View Switcher
+        self.view_switcher = ctk.CTkSegmentedButton(
+            self.right_frame,
+            values=["Rules + Presets", "Song Edit"],
+            command=self.switch_right_view,
+        )
+        self.view_switcher.grid(row=0, column=0, sticky="ew", padx=8, pady=(8, 4))
+        self.view_switcher.set("Rules + Presets")
+
+        # --- Rules View Frame ---
+        self.rules_frame = ctk.CTkFrame(self.right_frame, fg_color="transparent")
+        self.rules_frame.grid_columnconfigure(0, weight=1)
+        self.rules_frame.grid_rowconfigure(1, weight=1)
 
         # Preset controls
-        self.preset_component = PresetComponent(self.right_frame, self)
-        self.preset_component.grid(row=0, column=0, sticky="ew", padx=8, pady=(8, 6))
+        self.preset_component = PresetComponent(self.rules_frame, self)
+        self.preset_component.grid(row=0, column=0, sticky="ew", padx=0, pady=(0, 6))
 
         # Rule Tabs
-        self.rule_tabs_component = RuleTabsComponent(self.right_frame, self)
-        self.rule_tabs_component.grid(row=1, column=0, sticky="nsew", padx=8, pady=(0, 6))
+        self.rule_tabs_component = RuleTabsComponent(self.rules_frame, self)
+        self.rule_tabs_component.grid(row=1, column=0, sticky="nsew", padx=0, pady=(0, 6))
 
-        # Preview Area (JSON & Cover)
-        self.json_edit_component = JSONEditComponent(self.right_frame, self)
-        self.json_edit_component.grid(row=2, column=0, sticky="nsew", padx=8, pady=(0, 8))
+        # JSON Editor
+        self.json_edit_component = JSONEditComponent(self.rules_frame, self)
+        self.json_edit_component.grid(row=2, column=0, sticky="ew", padx=0, pady=(0, 6))
+        self.rules_frame.grid_rowconfigure(2, weight=0)
 
         # Output Preview
-        self.output_preview_component = OutputPreviewComponent(self.right_frame, self)
-        self.output_preview_component.grid(row=3, column=0, sticky="ew", padx=8, pady=(0, 8))
+        self.output_preview_component = OutputPreviewComponent(self.rules_frame, self)
+        self.output_preview_component.grid(row=3, column=0, sticky="ew", padx=0, pady=(0, 8))
 
         # Filename Editing
-        self.filename_component = FilenameComponent(self.right_frame, self)
-        self.filename_component.grid(row=4, column=0, sticky="ew", padx=8, pady=(0, 8))
+        self.filename_component = FilenameComponent(self.rules_frame, self)
+        self.filename_component.grid(row=4, column=0, sticky="ew", padx=0, pady=(0, 8))
 
-        # Navigation (Bottom buttons)
-        self.navigation_component = NavigationComponent(self.right_frame, self)
-        self.navigation_component.grid(row=5, column=0, sticky="ew", padx=8, pady=(0, 8))
+        # Apply Component
+        self.apply_component = ApplyComponent(self.rules_frame, self)
+        self.apply_component.grid(row=5, column=0, sticky="ew", padx=0, pady=(0, 8))
+
+        # --- Edit View Frame ---
+        self.edit_frame = ctk.CTkFrame(self.right_frame, fg_color="transparent")
+        self.edit_frame.grid_columnconfigure(0, weight=1)
+        self.edit_frame.grid_rowconfigure(0, weight=1)
+
+        self.song_edit_component = SongEditComponent(self.edit_frame, self)
+        self.song_edit_component.grid(row=0, column=0, sticky="nsew", padx=0, pady=0)
+
+        # Show default view
+        self.rules_frame.grid(row=2, column=0, sticky="nsew", padx=8, pady=(0, 8))
 
         # Set default sash location after window appears
         self.after(150, lambda: self.paned.sash_place(0, int(self.winfo_screenwidth() * 0.62), 0))
         # Initialize rule tab button states
         self.rule_tabs_component.update_rule_tab_buttons()
 
+    def switch_right_view(self, value: str) -> None:
+        """Switch between Rules and Song Edit views."""
+        if value == "Rules + Presets":
+            self.edit_frame.grid_forget()
+            self.rules_frame.grid(row=2, column=0, sticky="nsew", padx=8, pady=(0, 8))
+        else:
+            self.rules_frame.grid_forget()
+            self.edit_frame.grid(row=2, column=0, sticky="nsew", padx=8, pady=(0, 8))
+
     # -------------------------
     # FIXED: Tree population with correct column order
     # -------------------------
     def populate_tree_fast(self) -> None:
         """Populate tree with threaded data loading and multi-sort."""
-        self.lbl_file_info.configure(text=f"Loading {len(self.mp3_files)} files...")
+        self.lbl_file_info.configure(text=f"Loading {len(self.song_files)} files...")
         self.update_idletasks()
 
         def update_loading_progress(current: int, total: int) -> None:
@@ -226,10 +286,10 @@ class DFApp(ctk.CTk):
 
         def load_file_data_worker() -> None:
             """Load file data in background thread."""
-            total = len(self.mp3_files)
+            total = len(self.song_files)
 
             # Pre-load all file data first
-            for i, p in enumerate(self.mp3_files):
+            for i, p in enumerate(self.song_files):
                 # Check for cancellation
                 if self.progress_dialog and self.progress_dialog.cancelled:
                     self.after_idle(lambda: on_data_loaded(success=False))
@@ -255,7 +315,7 @@ class DFApp(ctk.CTk):
                 return
 
             # Get view data from FileManager
-            df = self.file_manager.get_view_data(self.mp3_files)
+            df = self.file_manager.get_view_data(self.song_files)
 
             # Apply multi-level sorting using Polars
             sorted_df = RuleManager.apply_multi_sort_polars(self.sorting_component.sort_rules, df)
@@ -303,7 +363,7 @@ class DFApp(ctk.CTk):
                         self.tree_component.tree.selection_set(self.tree_component.tree.get_children()[0])
                         self.on_tree_select()
 
-                    self.lbl_file_info.configure(text=f"Loaded {len(self.mp3_files)} files")
+                    self.lbl_file_info.configure(text=f"Loaded {len(self.song_files)} files")
                     self.song_controls_component.btn_select_folder.configure(state="normal")
                     self.operation_in_progress = False
 
@@ -325,32 +385,16 @@ class DFApp(ctk.CTk):
         ).start()
 
     # Cover Image Functions
-    def _safe_cover_display_update(self, text: str, *, clear_image: bool = False) -> None:
-        """Safely update cover display without causing Tcl errors."""
-        try:
-            if clear_image:
-                # Clear image reference first using a safer approach
-                self.json_edit_component.cover_display.configure(image=None)
-            self.json_edit_component.cover_display.configure(text=text)
-        except Exception:
-            # If we get an error, try a more aggressive approach
-            try:
-                self.json_edit_component.cover_display.configure(image=None, text=text)
-            except Exception:
-                # Final fallback - just set text
-                with contextlib.suppress(Exception):
-                    self.json_edit_component.cover_display.configure(text=text)
-
     def load_current_cover(self) -> None:
         """Load cover image for current song."""
-        if self.current_index is None or not self.mp3_files:
+        if self.current_index is None or not self.song_files:
             return
 
-        path = self.mp3_files[self.current_index]
+        path = self.song_files[self.current_index]
 
         # Prevent UI blocking
         current_time = time.time()
-        if current_time - self.last_cover_request_time < 0.1:
+        if current_time - self.last_cover_request_time < 0.1:  # TODO: Remove on non-performant mode
             return
         self.last_cover_request_time = current_time
 
@@ -361,7 +405,7 @@ class DFApp(ctk.CTk):
             return
 
         # Show loading message
-        self._safe_cover_display_update("Loading cover...")
+        self.song_edit_component.show_loading_cover()
 
         # Load art when free
         threading.Thread(target=self.load_cover_art, args=(path,), daemon=True).start()
@@ -369,71 +413,62 @@ class DFApp(ctk.CTk):
     def load_cover_art(self, path: str) -> None:
         """Request loading of cover art for the given file path."""
         try:
-            img = mp3_utils.read_cover_from_mp3(path)
+            img = song_utils.read_cover_from_song(path)
             if img:
-                img = self.cover_cache.put(path, img)  # Cache the optimized image
-                self.display_cover_image(img)
+                ctk_image = self.cover_cache.put(path, img)
+                self.display_cover_image(ctk_image)
             else:
-                self._safe_cover_display_update("No cover", clear_image=True)
+                self.song_edit_component.show_no_cover()
 
         except Exception:
             logger.exception("Error loading cover")
-            self._safe_cover_display_update("No cover (error)", clear_image=True)
+            self.song_edit_component.show_cover_error()
 
-    def display_cover_image(self, img: Image.Image | None) -> None:
+    def display_cover_image(self, ctk_image: ctk.CTkImage | None) -> None:
         """Display cover image centered in the square container."""
-        if not img:
-            self._safe_cover_display_update("No cover", clear_image=True)
+        if not ctk_image:
+            self.song_edit_component.show_no_cover()
             return
 
         try:
-            # The image is already optimized to fit within 200x200 square
-            # Convert to CTkImage for display
-            ctk_image = ctk.CTkImage(
-                light_image=img,
-                dark_image=img,
-                size=(img.width, img.height),  # Use the actual dimensions of the optimized image
-            )
-
-            # Update display - the label will center the image automatically
-            self.json_edit_component.cover_display.configure(image=ctk_image, text="")
-
+            self.song_edit_component.display_cover(ctk_image)
         except Exception:
             logger.exception("Error displaying cover")
-            self._safe_cover_display_update("Error loading cover", clear_image=True)
+            self.song_edit_component.show_cover_error("Error loading cover")
 
     def toggle_theme(self, theme: str | None = None) -> None:
         """Toggle between dark and light themes."""
         try:
             if theme is not None:
-                self.current_theme = theme
-            elif self.current_theme == "System":
+                SettingsManager.theme = theme
+            elif SettingsManager.theme == "System":
                 # If system, switch to explicit dark
-                self.current_theme = "Dark"
-            elif self.current_theme == "Dark":
-                self.current_theme = "Light"
+                SettingsManager.theme = "Dark"
+            elif SettingsManager.theme == "Dark":
+                SettingsManager.theme = "Light"
             else:
-                self.current_theme = "Dark"
+                SettingsManager.theme = "Dark"
 
             # Apply the theme
-            ctk.set_appearance_mode(self.current_theme)
+            ctk.set_appearance_mode(SettingsManager.theme)
 
             # Update all theme-dependent elements
+            self.menu_component.update_theme()
             self.tree_component.update_theme()
+            self.song_edit_component.update_theme()
             self.json_edit_component.update_theme()
             self.output_preview_component.update_theme()
-            self.preset_component.update_theme()
 
             # Refresh the tree to apply new styles
             if self.tree_component.tree.get_children():
                 self.after(0, self.refresh_tree)
 
             # Always load cover after theme change
-            self._safe_cover_display_update("Loading cover...")
+            self.song_edit_component.show_loading_cover()
             if self.current_index is not None:
                 self.load_current_cover()
             else:
-                self._safe_cover_display_update("No cover", clear_image=True)
+                self.song_edit_component.show_no_cover()
 
         except Exception:
             logger.exception("Error toggling theme")
@@ -444,18 +479,17 @@ class DFApp(ctk.CTk):
     def save_settings(self) -> None:
         """Save UI settings to a JSON file."""
         try:
-            data = {}
             # sash ratio
             try:
                 sash_pos = self.paned.sash_coord(0)[0]  # Get the x position of the sash
                 total = self.paned.winfo_width() or 1
-                data["sash_ratio"] = float(sash_pos) / float(total)
+                SettingsManager.sash_ratio = float(sash_pos) / float(total)
             except (AttributeError, IndexError, TypeError):
-                data["sash_ratio"] = None
+                SettingsManager.sash_ratio = None
 
             # column order and widths
             try:
-                data["column_order"] = self.tree_component.column_order
+                SettingsManager.column_order = self.tree_component.column_order
                 widths = {}
                 for col in self.tree_component.column_order:
                     try:
@@ -463,37 +497,27 @@ class DFApp(ctk.CTk):
                         widths[col] = int(info.get("width", 0))
                     except Exception:
                         widths[col] = 0
-                data["column_widths"] = widths
+                SettingsManager.column_widths = widths
             except Exception:
-                data["column_order"] = self.tree_component.column_order
-                data["column_widths"] = {}
+                SettingsManager.column_order = self.tree_component.column_order
+                SettingsManager.column_widths = {}
 
             # sort rules
             try:
-                data["sort_rules"] = RuleManager.get_sort_rules(self.sorting_component.sort_rules)
+                SettingsManager.sort_rules = RuleManager.get_sort_rules(self.sorting_component.sort_rules)
             except Exception:
-                data["sort_rules"] = []
-
-            # other UI prefs
-            data["theme"] = str(self.current_theme)
-            if self.last_folder_opened:
-                data["last_folder_opened"] = self.last_folder_opened
-            data["auto_reopen_last_folder"] = self.auto_reopen_last_folder
+                SettingsManager.sort_rules = []
 
             # write file
-            SettingsManager.save_settings(data)
+            SettingsManager.save_settings()
         except Exception:
             logger.exception("Error saving settings")
 
     def load_settings(self) -> None:
         """Load UI settings from JSON file and apply them where possible."""
-        data = SettingsManager.load_settings()
-        if not data:
-            return
-
-        # theme
+        # Theme
         try:
-            th = data.get("theme")
+            th = SettingsManager.theme
             if th:
                 self.current_theme = th
                 self.toggle_theme(theme=th)
@@ -502,14 +526,12 @@ class DFApp(ctk.CTk):
 
         try:
             # last folder
-            self.last_folder_opened = data.get("last_folder_opened")
-            self.auto_reopen_last_folder = data.get("auto_reopen_last_folder", None)
             # Check for last folder opened
             self.after_idle(self.check_last_folder)
 
             # column order & widths
-            col_order = data.get("column_order")
-            col_widths = data.get("column_widths", {})
+            col_order = SettingsManager.column_order
+            col_widths = SettingsManager.column_widths
             if col_order and isinstance(col_order, list):
                 # apply order
                 self.tree_component.column_order = col_order
@@ -524,7 +546,7 @@ class DFApp(ctk.CTk):
 
         try:
             # sort rules
-            sort_rules = data.get("sort_rules") or []
+            sort_rules = SettingsManager.sort_rules or []
             if isinstance(sort_rules, list) and sort_rules:
                 # ensure at least one rule exists
                 # clear existing additional rules and set values
@@ -548,7 +570,7 @@ class DFApp(ctk.CTk):
 
         try:
             # sash ratio - apply after window is laid out
-            sash_ratio = data.get("sash_ratio")
+            sash_ratio = SettingsManager.sash_ratio
             if sash_ratio is not None:
 
                 def apply_ratio(attempts: int = 0) -> None:
@@ -571,31 +593,31 @@ class DFApp(ctk.CTk):
 
     def check_last_folder(self) -> None:
         """Check if there is a last opened folder and prompt the user to load it."""
-        if not self.last_folder_opened or not Path(self.last_folder_opened).exists():
+        if not SettingsManager.last_folder_opened or not Path(SettingsManager.last_folder_opened).exists():
             return
 
-        if self.auto_reopen_last_folder is True:
-            self.select_folder(self.last_folder_opened)
+        if SettingsManager.auto_reopen_last_folder is True:
+            self.select_folder(SettingsManager.last_folder_opened)
             return
 
-        if self.auto_reopen_last_folder is False:
+        if SettingsManager.auto_reopen_last_folder is False:
             return
 
         # If None, ask the user
         dialog = ConfirmDialog(
             self,
             "Load Last Folder",
-            f"Do you want to load the last opened folder?\n{self.last_folder_opened}",
+            f"Do you want to load the last opened folder?\n{SettingsManager.last_folder_opened}",
             checkbox_text="Remember my choice",
         )
 
         if dialog.result:
             if dialog.checkbox_checked:
-                self.auto_reopen_last_folder = True
+                SettingsManager.auto_reopen_last_folder = True
                 self.save_settings()
-            self.select_folder(self.last_folder_opened)
+            self.select_folder(SettingsManager.last_folder_opened)
         elif dialog.checkbox_checked:  # User said NO and checked "Remember my choice"
-            self.auto_reopen_last_folder = False
+            SettingsManager.auto_reopen_last_folder = False
             self.save_settings()
 
     def _on_close(self) -> None:
@@ -610,10 +632,10 @@ class DFApp(ctk.CTk):
 
     def update_tree_row(self, index: int, json_data: dict[str, str]) -> None:
         """Update a specific row in the treeview with new JSON data."""
-        if index < 0 or index >= len(self.mp3_files):
+        if index < 0 or index >= len(self.song_files):
             return
 
-        path = self.mp3_files[index]
+        path = self.song_files[index]
         # Create field values dictionary
         field_values = {
             MetadataFields.UI_TITLE: json_data.get(MetadataFields.TITLE) or Path(path).stem,
@@ -642,7 +664,7 @@ class DFApp(ctk.CTk):
         if self.current_index is None:
             return
 
-        current_path = self.mp3_files[self.current_index]
+        current_path = self.song_files[self.current_index]
         current_filename = Path(current_path).name
         new_filename = self.filename_component.filename_var.get().strip()
 
@@ -654,9 +676,10 @@ class DFApp(ctk.CTk):
             messagebox.showinfo("No change", "Filename is the same as current")
             return
 
-        # Ensure the new filename has .mp3 extension
-        if not new_filename.lower().endswith(".mp3"):
-            new_filename += ".mp3"
+        # Ensure the new filename has a supported extension
+        if not any(new_filename.lower().endswith(ext) for ext in song_utils.SUPPORTED_FILES_TYPES):
+            messagebox.showwarning("Invalid filename", "Filename must end with a valid extension")
+            return
 
         # Get directory and construct new path
         directory = Path(current_path).parent
@@ -681,7 +704,7 @@ class DFApp(ctk.CTk):
         def on_rename_complete(old_name: str, new_name_or_error: str, *, success: bool) -> None:
             if success:
                 # Update the file path in our list
-                self.mp3_files[self.current_index] = new_path
+                self.song_files[self.current_index] = new_path
 
                 # Update cache entries
                 self.file_manager.update_file_path(current_path, new_path)
@@ -713,7 +736,7 @@ class DFApp(ctk.CTk):
     # File / tree operations
     # -------------------------
     def select_folder(self, folder_path: str | None = None) -> None:
-        """Handle folder selection and MP3 scanning with progress dialog."""
+        """Handle folder selection and song scanning with progress dialog."""
         if self.operation_in_progress:
             return
 
@@ -724,14 +747,17 @@ class DFApp(ctk.CTk):
         if not folder:
             return
 
-        self.last_folder_opened = folder
+        SettingsManager.last_folder_opened = folder
 
         self.operation_in_progress = True
         self.song_controls_component.btn_select_folder.configure(state="disabled")
 
         # Clear cache when loading new folder
+        self.display_cover_image(None)
+        self.update_idletasks()
+        self.song_edit_component.cover_component.update()
         self.file_manager.clear()
-        self.cover_cache.clear()
+        # self.cover_cache.clear()  # Causes issues with reloading
 
         # Show loading state immediately
         self.lbl_file_info.configure(text="Scanning folder...")
@@ -739,7 +765,7 @@ class DFApp(ctk.CTk):
 
         # Create and show progress dialog IMMEDIATELY
         self.progress_dialog = ProgressDialog(self, "Loading Folder")
-        self.progress_dialog.update_progress(0, 100, "Finding MP3 files...")
+        self.progress_dialog.update_progress(0, 100, "Finding song files...")
 
         def update_scan_progress(count: int) -> None:
             if self.progress_dialog:
@@ -752,13 +778,13 @@ class DFApp(ctk.CTk):
                 count = 0
 
                 # Use pathlib for faster file discovery
-                for p in Path(folder).glob("**/*.mp3"):
+                for p in Path(folder).rglob("*"):
                     # Check for cancellation
                     if self.progress_dialog and self.progress_dialog.cancelled:
                         self.after_idle(lambda: on_scan_complete(None))
                         return
 
-                    if p.is_file() and p.suffix.lower() == ".mp3":
+                    if p.is_file() and p.suffix.lower() in song_utils.SUPPORTED_FILES_TYPES:
                         files.append(str(p))
                         count += 1
                         # Update progress every 10 files
@@ -781,9 +807,9 @@ class DFApp(ctk.CTk):
                     self.progress_dialog = None
                 return
 
-            self.mp3_files = files
-            if not self.mp3_files:
-                messagebox.showwarning("No files", "No mp3 files found in that folder")
+            self.song_files = files
+            if not self.song_files:
+                messagebox.showwarning("No files", "No song files found in that folder")
                 self.lbl_file_info.configure(text="No files")
                 self.song_controls_component.btn_select_folder.configure(state="normal")
                 self.operation_in_progress = False
@@ -797,6 +823,8 @@ class DFApp(ctk.CTk):
                 self.progress_dialog.label.configure(text="Loading file metadata...")
                 self.progress_dialog.progress.set(0)
 
+            self.current_folder = folder
+
             # Use optimized population
             self.populate_tree_fast()
 
@@ -808,7 +836,7 @@ class DFApp(ctk.CTk):
         q_raw = self.song_controls_component.search_var.get().strip()
 
         # Get view data from FileManager
-        df = self.file_manager.get_view_data(self.mp3_files)
+        df = self.file_manager.get_view_data(self.song_files)
 
         # Apply search filters
         filters, free_terms = RuleManager.parse_search_query(q_raw)
@@ -857,18 +885,18 @@ class DFApp(ctk.CTk):
             idx = int(iid)
         except Exception:
             return
-        if idx < 0 or idx >= len(self.mp3_files):
+        if idx < 0 or idx >= len(self.song_files):
             return
         self.current_index = idx
         self.load_current()
 
     def load_current(self) -> None:
         """Load current song data."""
-        if self.current_index is None or not self.mp3_files:
+        if self.current_index is None or not self.song_files:
             return
-        path = self.mp3_files[self.current_index]
+        path = self.song_files[self.current_index]
         self.lbl_file_info.configure(
-            text=f"{self.current_index + 1}/{len(self.mp3_files)}  —  {Path(path).name}",
+            text=f"{self.current_index + 1}/{len(self.song_files)}  —  {Path(path).name}",
         )
 
         # Load metadata
@@ -883,6 +911,9 @@ class DFApp(ctk.CTk):
 
         # Load cover AFTER preview is updated
         self.load_current_cover()
+
+        # Update Song Edit View
+        self.after_idle(lambda: self.song_edit_component.update_view(self.current_metadata))
 
     def prev_file(self) -> None:
         """Navigate to previous file in the visible list."""
@@ -971,7 +1002,7 @@ class DFApp(ctk.CTk):
             messagebox.showwarning("No selection", "Select rows in the song list first")
             return
 
-        paths = [self.mp3_files[int(iid)] for iid in sel]
+        paths = [self.song_files[int(iid)] for iid in sel]
 
         # Collect rules on main thread BEFORE starting background thread
         title_rules = self.collect_rules_for_tab("title")
@@ -1025,7 +1056,7 @@ class DFApp(ctk.CTk):
                     cover_bytes = None
                     cover_mime = "image/jpeg"
 
-                    if mp3_utils.write_id3_tags(
+                    if song_utils.write_id3_tags(
                         p,
                         title=new_title,
                         artist=new_artist,
@@ -1086,12 +1117,12 @@ class DFApp(ctk.CTk):
 
     def apply_to_all(self) -> None:
         """Apply metadata changes to all loaded files with confirmation."""
-        if not self.mp3_files:
+        if not self.song_files:
             messagebox.showwarning("No files", "Load a folder first")
             return
 
         # Show confirmation with file count
-        res = messagebox.askyesno("Confirm", f"Apply to all {len(self.mp3_files)} files?")
+        res = messagebox.askyesno("Confirm", f"Apply to all {len(self.song_files)} files?")
         if not res:
             return
 
@@ -1238,10 +1269,6 @@ class DFApp(ctk.CTk):
     # -------------------------
     # Helper methods
     # -------------------------
-    @property
-    def is_dark_mode(self) -> bool:
-        """Check if current theme is dark mode."""
-        return self.current_theme == "Dark" or (self.current_theme == "System" and ctk.get_appearance_mode() == "Dark")
 
     def run(self) -> None:
         """Run the main application loop."""

@@ -15,7 +15,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
-    "pyinstaller==6.17.0",
+    "pyinstaller==6.18.0",
     "ruff==0.14.10",
 ]
 
@@ -25,12 +25,29 @@ include = ["df_metadata_customizer"]
 [tool.ruff]
 line-length = 120
 target-version = "py310"
-select = [
-    "ALL",
-]
+
+[tool.ruff.lint]
+select = ["ALL"]
 ignore = [
+    "D203",    # incorrect-blank-line-before-class
+    "D213",    # multi-line-summary-second-line
+
     "PLR0915", # too-many-statements
     "C901",    # too-complex
     "PLR0911", # too-many-return-statements
     "PLR0912", # too-many-branches
+    "PLR0913", # too-many-arguments
+
+    "BLE001",  # blind-except
+    "PERF203", # try-except-in-loop
+    "PLR2004", # magic-value-comparison
+
+    "ERA001",  # commented-out-code
+    "FIX002",  # line-contains-todo
+    "TD002",   # missing-todo-author
+    "TD003",   # missing-todo-link
+
+    "S603",    # subprocess-without-shell-equals-true
+    "S606",    # start-process-with-no-shell
+    "S607",    # start-process-with-partial-path
 ]
