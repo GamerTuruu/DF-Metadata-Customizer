@@ -113,6 +113,13 @@ class MetadataEditorComponent(ScrollableAppComponent):
             self._add_field(key, label, current_row)
             current_row += 1
 
+        self.chk_include_hash = ctk.CTkCheckBox(
+            self,
+            text="Add xxHash",
+        )
+        self.chk_include_hash.grid(row=current_row, column=0, columnspan=2, sticky="w", padx=5, pady=10)
+        self.chk_include_hash.select()
+
     def _add_field(self, key: str, label_text: str, row: int) -> None:
         """Add a labeled entry field."""
         lbl = ctk.CTkLabel(self, text=label_text, anchor="w")
@@ -150,6 +157,10 @@ class MetadataEditorComponent(ScrollableAppComponent):
     def get_current_data(self) -> dict[str, str]:
         """Return dictionary of current values."""
         return {key: entry.get().strip() for key, entry in self.entries.items()}
+
+    def should_include_hash(self) -> bool:
+        """Return whether xxHash should be included."""
+        return bool(self.chk_include_hash.get())
 
     def import_metadata(self, metadata: SongMetadata) -> None:
         """Import metadata values into fields without resetting original values."""

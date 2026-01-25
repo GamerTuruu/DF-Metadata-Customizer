@@ -435,6 +435,19 @@ class SongEditComponent(AppComponent):
             if ui_key in ui_data:
                 json_data[json_key] = ui_data[ui_key]
 
+        # Add xxHash if requested
+        if self.metadata_editor.should_include_hash():
+            path_to_hash = None
+            if self.adding_new_song and self.new_song_source_path:
+                path_to_hash = self.new_song_source_path
+            elif self.current_metadata and self.current_metadata.path:
+                path_to_hash = self.current_metadata.path
+
+            if path_to_hash:
+                h = song_utils.get_audio_hash(path_to_hash)
+                if h:
+                    json_data["xxHash"] = h
+
         # 2. Prepare ID3 Data
         id3_data = {}
         if MetadataFields.UI_ID3_TITLE in ui_data:

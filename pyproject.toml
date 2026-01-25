@@ -12,6 +12,7 @@ dependencies = [
     "rclone-python==0.1.23",
     "rich==14.2.0",
     "tinytag==2.2.0",
+    "xxhash==3.6.0",
 ]
 
 [dependency-groups]

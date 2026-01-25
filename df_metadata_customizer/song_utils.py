@@ -12,6 +12,7 @@ from io import BytesIO
 from pathlib import Path
 from tkinter import messagebox
 
+import xxhash
 from mutagen.id3 import APIC, COMM, ID3, TALB, TDRC, TIT2, TPE1, TPOS, TRCK, ID3NoHeaderError
 from PIL import Image
 from tinytag import TinyTag
@@ -70,7 +71,7 @@ def write_json_to_song(path: str, json_data: dict | str) -> bool:
     try:
         # Try to load existing tags or create new ones
         try:
-            tags = ID3(path)
+            tags = ID3(path).getall
         except ID3NoHeaderError:
             tags = ID3()
 
@@ -214,7 +215,31 @@ After installation, try double-clicking again."""
     messagebox.showinfo("Media Player Required", instructions)
 
 
-def get_audio_hash(path: str) -> str | None:
+def get_audio_hash(file_path: str) -> str | None:
+    """Calculate xxhash (xxh64) of audio content, stripping ID3 tags."""
+    try:
+        try:
+            audio_tags = ID3(file_path)
+            header_size = audio_tags.size
+        except ID3NoHeaderError:
+            header_size = 0
+
+        file_data = Path(file_path).read_bytes()
+
+        # Check for ID3v1 footer (always 128 bytes at the end starting with 'TAG')
+        footer_size = 128 if file_data[-128:].startswith(b"TAG") else 0
+
+        # Slice the data to extract only the audio frames
+        end_index = len(file_data) - footer_size
+        raw_audio = file_data[header_size:end_index]
+
+        return xxhash.xxh64(raw_audio).hexdigest()
+
+    except Exception:
+        logger.exception("Error calculating audio hash")
+        return None
+
+def get_audio_hash_legacy(path: str) -> str | None:
     """Calculate SHA256 hash of the audio content, ignoring ID3v1/v2 tags.
 
     Returns hex digest string or None on error.

@@ -160,6 +160,11 @@ class SongMetadata:
         return self._data.get(MetadataFields.SPECIAL) or ""
 
     @property
+    def xxhash(self) -> str | None:
+        """Return the xxHash value if present."""
+        return self._data.get("xxHash")
+
+    @property
     def is_latest(self) -> bool:
         """Return whether this is the latest version."""
         return self._is_latest
