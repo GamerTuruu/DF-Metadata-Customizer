@@ -100,16 +100,19 @@ async def list_files(limit: int = 100, offset: int = 0) -> FileListResponse:
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/get/{file_path:path}", response_model=SongMetadataResponse)
+@router.get("/get", response_model=SongMetadataResponse)
 async def get_file_metadata(file_path: str) -> SongMetadataResponse:
     """Get metadata for a specific file."""
     if not _file_manager:
         init_managers()
 
     try:
+        if not file_path:
+            raise ValueError("file_path query parameter is required")
+        
         song = _file_manager.get_file_by_path(file_path)
         if not song:
-            raise ValueError("File not found")
+            raise ValueError(f"File not found: {file_path}")
 
         return SongMetadataResponse(
             file_path=song.path,

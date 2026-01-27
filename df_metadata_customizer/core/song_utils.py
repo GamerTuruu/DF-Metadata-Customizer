@@ -22,8 +22,13 @@ SUPPORTED_FILES_TYPES = {".mp3"}
 
 def extract_json_from_song(path: str) -> dict | None:
     """Return parsed JSON dict or None."""
+    if not path:
+        return None
+    
     try:
         tags = TinyTag.get(path, tags=True, image=False)
+        if not tags:
+            return None
 
         # tag.comment and tag.other['comment'] may contain JSON texts
         texts = tags.other.get("comment") or []  # All entries in other are lists
@@ -39,8 +44,8 @@ def extract_json_from_song(path: str) -> dict | None:
             with contextlib.suppress(json.JSONDecodeError, TypeError):
                 comm_data.update(json.loads(text))
 
-    except Exception:
-        logger.exception("Error parsing JSON from file comment")
+    except Exception as e:
+        logger.debug(f"Could not extract JSON from {path}: {e}")
         return None
 
     return comm_data
@@ -48,10 +53,13 @@ def extract_json_from_song(path: str) -> dict | None:
 
 def get_id3_tags(path: str) -> dict[str, str]:
     """Return dictionary of standard ID3 tags."""
+    if not path:
+        return {}
+    
     try:
         tags = TinyTag.get(path, tags=True, image=False)
     except Exception:
-        logger.exception("Error reading ID3 tags")
+        logger.debug(f"Error reading ID3 tags from {path}")
         return {}
 
     return {
