@@ -1,16 +1,20 @@
 [project]
 name = "df_metadata_customizer"
-version = "1.2.1"
-description = "Open-source MP3 metadata editor built with CustomTkinter, specifically designed for managing fan cover song collections."
+version = "2.0.0"
+description = "MP3 metadata editor with PyQt6 UI, REST API, and CLI. Designed for managing fan cover song collections."
 readme = "README.md"
 requires-python = ">=3.10, <3.15"
 dependencies = [
-    "customtkinter==5.2.2",
+    "PyQt6==6.7.0",
     "mutagen==1.47.0",
     "pillow==12.0.0",
     "polars==1.36.1",
     "rich==14.2.0",
     "tinytag==2.2.0",
+    "fastapi==0.110.0",
+    "uvicorn==0.27.0",
+    "click==8.1.7",
+    "pydantic==2.5.3",
 ]
 
 [dependency-groups]
