@@ -16,12 +16,16 @@ class SettingsManager:
     APP_NAME = "df_metadata_customizer"
 
     # Settings
-    theme: ClassVar[str] = "System"
+    theme: ClassVar[str] = "dark"
+    ui_scale: ClassVar[float] = 1.0
     last_folder_opened: ClassVar[str | None] = None
-    auto_reopen_last_folder: ClassVar[bool | None] = None
+    auto_reopen_last_folder: ClassVar[bool | None] = False
     column_order: ClassVar[list[str] | None] = None
     column_widths: ClassVar[dict[str, int]] = {}
-    sort_rules: ClassVar[list[dict[str, Any]]] = []
+    window_width: ClassVar[int] = 1400
+    window_height: ClassVar[int] = 900
+    splitter_sizes: ClassVar[list[int]] = []
+    sort_rules: ClassVar[list[tuple]] = [("Title", True)]  # List of (field, ascending) tuples
 
     @classmethod
     def initialize(cls) -> None:
@@ -71,10 +75,14 @@ class SettingsManager:
         """Save settings dictionary to JSON file."""
         data = {
             "theme": cls.theme,
+            "ui_scale": cls.ui_scale,
             "last_folder_opened": cls.last_folder_opened,
             "auto_reopen_last_folder": cls.auto_reopen_last_folder,
             "column_order": cls.column_order,
             "column_widths": cls.column_widths,
+            "window_width": cls.window_width,
+            "window_height": cls.window_height,
+            "splitter_sizes": cls.splitter_sizes,
             "sort_rules": cls.sort_rules,
         }
         try:
@@ -92,12 +100,18 @@ class SettingsManager:
             with cls.get_settings_path().open("r", encoding="utf-8") as f:
                 data = json.load(f)
 
-            cls.theme = data.get("theme", "System")
+            cls.theme = data.get("theme", "dark")
+            cls.ui_scale = data.get("ui_scale", 1.0)
             cls.last_folder_opened = data.get("last_folder_opened")
             cls.auto_reopen_last_folder = data.get("auto_reopen_last_folder")
             cls.column_order = data.get("column_order")
             cls.column_widths = data.get("column_widths", {})
-            cls.sort_rules = data.get("sort_rules", [])
+            cls.window_width = data.get("window_width", 1400)
+            cls.window_height = data.get("window_height", 900)
+            cls.splitter_sizes = data.get("splitter_sizes", [])
+            # Load sort_rules as list of tuples
+            sort_rules_data = data.get("sort_rules", [("Title", True)])
+            cls.sort_rules = [tuple(rule) if isinstance(rule, list) else rule for rule in sort_rules_data]
         except Exception:
             logger.exception("Error loading settings")
 
