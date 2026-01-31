@@ -39,10 +39,10 @@ class RuleRow(QFrame):
         layout.setContentsMargins(6, 6, 6, 6)
         layout.setSpacing(6)
         
-        # Logic selector (AND/OR) - shown on all rows
+        # Logic selector (AND/OR)s
         self.logic_combo = NoScrollComboBox()
         self.logic_combo.addItems(["AND", "OR"])
-        self.logic_combo.setFixedWidth(60)
+        self.logic_combo.setFixedWidth(55)
         self.logic_combo.currentTextChanged.connect(self.rule_changed.emit)
         layout.addWidget(self.logic_combo)
         
@@ -65,7 +65,7 @@ class RuleRow(QFrame):
         # Operator selector
         self.op_combo = NoScrollComboBox()
         self.op_combo.addItems(operators)
-        self.op_combo.setFixedWidth(140)
+        self.op_combo.setFixedWidth(100)
         self.op_combo.currentTextChanged.connect(self.rule_changed.emit)
         layout.addWidget(self.op_combo)
         
@@ -82,7 +82,7 @@ class RuleRow(QFrame):
         
         # Template entry
         self.template_entry = QLineEdit()
-        self.template_entry.setPlaceholderText("{Artist} (feat. {CoverArtist})")
+        self.template_entry.setPlaceholderText("e.g. {Title} - {Artist}")
         self.template_entry.textChanged.connect(self.rule_changed.emit)
         layout.addWidget(self.template_entry, 1)
         
@@ -114,6 +114,9 @@ class RuleRow(QFrame):
         """)
         delete_btn.clicked.connect(lambda: self.delete_requested.emit(self))
         layout.addWidget(delete_btn)
+        
+        # Store is_first flag (not shown in UI, but preserved from presets)
+        self.is_first = False
     
     def get_logic(self):
         """Get AND/OR logic."""
@@ -128,13 +131,16 @@ class RuleRow(QFrame):
     
     def get_rule_data(self):
         """Get rule as dictionary."""
-        return {
+        data = {
             "logic": self.get_logic(),
             "if_field": self.field_combo.currentText(),
             "if_operator": self.op_combo.currentText(),
             "if_value": self.value_entry.text(),
             "then_template": self.template_entry.text()
         }
+        if self.is_first:
+            data["is_first"] = True
+        return data
     
     def set_rule_data(self, data: dict):
         """Load rule from dictionary."""
@@ -157,6 +163,8 @@ class RuleRow(QFrame):
                 self.value_entry.setText(data["if_value"])
             if "then_template" in data:
                 self.template_entry.setText(data["then_template"])
+            # Store is_first flag
+            self.is_first = data.get("is_first", False)
         finally:
             # Unblock signals and emit update
             for widget in widgets:

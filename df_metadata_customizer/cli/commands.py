@@ -40,7 +40,7 @@ console = Console()
 @click.group()
 @click.version_option(version="2.0.0")
 def cli() -> None:
-    """Database Reformatter - MP3 Metadata Customizer CLI.
+    """Database Formatter - MP3 Metadata Customizer CLI.
     
     Powerful tool for managing MP3 metadata and applying presets to cover song collections.
     """

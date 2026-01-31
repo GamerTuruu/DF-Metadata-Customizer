@@ -1,4 +1,4 @@
-"""Database Reformatter entrypoint - Launcher for UI, API, or CLI."""
+"""Database Formatter entrypoint - Launcher for UI, API, or CLI."""
 
 import sys
 from pathlib import Path
@@ -34,7 +34,7 @@ def main() -> None:
 def print_help() -> None:
     """Print help message."""
     print("""
-Database Reformatter - MP3 Metadata Customizer
+Database Formatter - MP3 Metadata Customizer
 
 Usage:
   python -m df_metadata_customizer [COMMAND]

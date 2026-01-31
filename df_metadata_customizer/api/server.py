@@ -28,7 +28,7 @@ logging.basicConfig(level=logging.DEBUG, format="%(message)s", handlers=[logging
 logger = logging.getLogger(__name__)
 
 app = FastAPI(
-    title="Database Reformatter API",
+    title="Database Formatter API",
     description="REST API for MP3 metadata management",
     version="2.0.0",
     docs_url="/docs",
@@ -59,7 +59,7 @@ async def health_check() -> StatusResponse:
 async def root() -> dict:
     """Root endpoint with API information."""
     return {
-        "name": "Database Reformatter API",
+        "name": "Database Formatter API",
         "version": "2.0.0",
         "description": "REST API for MP3 metadata management",
         "docs": "/docs",

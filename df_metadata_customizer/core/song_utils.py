@@ -84,10 +84,16 @@ def write_json_to_song(path: str, json_data: dict | str) -> bool:
         # Remove existing COMM frames
         tags.delall("COMM::ved")
 
-        # Convert JSON to string and create new COMM frame
-        json_str = json_data if isinstance(json_data, str) else json.dumps(json_data, ensure_ascii=False)
+        # Convert JSON to compact string format for saving
+        if isinstance(json_data, str):
+            # If string provided, parse and re-compact it
+            parsed = json.loads(json_data)
+            json_str = json.dumps(parsed, ensure_ascii=False, separators=(",", ":"))
+        else:
+            # Compact the dict
+            json_str = json.dumps(json_data, ensure_ascii=False, separators=(",", ":"))
 
-        # Create COMM frame with proper encoding and description
+        # Create COMM frame with UTF-8 encoding
         tags.add(
             COMM(
                 encoding=3,  # UTF-8
@@ -103,6 +109,41 @@ def write_json_to_song(path: str, json_data: dict | str) -> bool:
         logger.exception("Error writing JSON to song")
         return False
     return True
+
+
+def write_id3_tags(path: str, metadata: dict) -> bool:
+    """Write standard ID3 tags (title/artist/album/track/disc/date)."""
+    try:
+        try:
+            tags = ID3(path)
+        except ID3NoHeaderError:
+            tags = ID3()
+
+        def set_or_clear(frame_id: str, frame_obj):
+            if frame_obj is None:
+                tags.delall(frame_id)
+            else:
+                tags.setall(frame_id, [frame_obj])
+
+        title = str(metadata.get("Title", "")).strip()
+        artist = str(metadata.get("Artist", "")).strip()
+        album = str(metadata.get("Album", "")).strip()
+        track = str(metadata.get("Track", "")).strip()
+        disc = str(metadata.get("Discnumber", "") or metadata.get("Disc", "")).strip()
+        date = str(metadata.get("Date", "")).strip()
+
+        set_or_clear("TIT2", TIT2(encoding=3, text=title) if title else None)
+        set_or_clear("TPE1", TPE1(encoding=3, text=artist) if artist else None)
+        set_or_clear("TALB", TALB(encoding=3, text=album) if album else None)
+        set_or_clear("TRCK", TRCK(encoding=3, text=track) if track else None)
+        set_or_clear("TPOS", TPOS(encoding=3, text=disc) if disc else None)
+        set_or_clear("TDRC", TDRC(encoding=3, text=date) if date else None)
+
+        tags.save(path)
+        return True
+    except Exception:
+        logger.exception("Error writing ID3 tags")
+        return False
 
 
 def get_cover_art(path: str) -> bytes | None:
