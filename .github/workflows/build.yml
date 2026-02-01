@@ -36,7 +36,7 @@ jobs:
         with:
           version: "0.9.24" # Temporarily use old version for TCL 8
           activate-environment: true
-          python-version: "3.12"
+          python-version: "3.14"
 
       - name: Install dependencies
         run: uv sync
