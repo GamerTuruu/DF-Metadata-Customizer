@@ -118,9 +118,8 @@ class TreeViewManager:
             self.parent.update_preview_info()
     
     def on_tree_item_clicked(self, item, column):
-        """Handle tree item click - select and show info."""
-        self.tree.clearSelection()
-        item.setSelected(True)
+        """Handle tree item click - show info for clicked item."""
+        # Don't clear selection - let Qt handle multi-select (Ctrl/Shift)
         self.parent.current_selected_file = item.data(0, Qt.ItemDataRole.UserRole)
         self.parent.current_index = self.tree.indexOfTopLevelItem(item)
         self.parent.update_preview_info()

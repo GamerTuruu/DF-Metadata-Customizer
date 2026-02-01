@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -23,9 +24,10 @@ from PyQt6.QtWidgets import (
     QFileDialog,
     QMessageBox,
     QScrollArea,
+    QMenu,
 )
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QPixmap
+from PyQt6.QtGui import QPixmap, QFontMetrics, QCursor
 
 from mutagen.id3 import ID3, ID3NoHeaderError, TIT2, TPE1, TALB, TRCK, TPOS, TDRC, TPE2, APIC, COMM
 
@@ -52,14 +54,128 @@ class SongEditorManager:
         self.preset_service = preset_service
         self._next_id = 1
         self._current_cover_bytes: bytes | None = None
+        self._persistent_date: str | None = None  # Keep track of user-set date
+        self._persistent_disc: str | None = None  # Keep track of user-set disc
 
         self.pending_tree: QTreeWidget | None = None
         self.source_label: QLabel | None = None
         self.preset_combo: NoScrollComboBox | None = None
         self.cover_label: QLabel | None = None
+        self.add_btn: QPushButton | None = None
+        self.update_btn: QPushButton | None = None
 
         self.json_fields: dict[str, QLineEdit] = {}
         self.id3_fields: dict[str, QLineEdit] = {}
+
+    def _get_ui_scale(self) -> float:
+        """Get UI scale factor from settings."""
+        try:
+            return SettingsManager.ui_scale or 1.0
+        except:
+            return 1.0
+
+    def _scale(self, value: int) -> int:
+        """Scale a value by the current UI scale factor."""
+        return int(value * self._get_ui_scale())
+
+    def _elide_text(self, text: str, font: QFontMetrics, width: int) -> str:
+        """Elide text with ... if it exceeds width."""
+        return font.elidedText(text, Qt.TextElideMode.ElideMiddle, width)
+
+    def _style_input_field(self, widget: QLineEdit) -> None:
+        """Apply consistent styling to input fields."""
+        widget.setStyleSheet("""
+            QLineEdit {
+                background-color: #1e1e1e;
+                color: #ffffff;
+                border: 1px solid #3d3d3d;
+                border-radius: 4px;
+                padding: 4px 8px;
+            }
+            QLineEdit:focus { border: 2px solid #0d47a1; }
+        """)
+
+    def _validate_numeric_field(self, field: QLineEdit) -> None:
+        """Validate that field contains only numbers and decimal point."""
+        text = field.text()
+        cursor_pos = field.cursorPosition()
+        # Allow only digits and decimal point
+        cleaned = ''.join(c for c in text if c.isdigit() or c == '.')
+        if cleaned != text:
+            field.blockSignals(True)
+            field.setText(cleaned)
+            field.setCursorPosition(min(cursor_pos, len(cleaned)))
+            field.blockSignals(False)
+
+    def _validate_track_field(self, field: QLineEdit) -> None:
+        """Validate that field contains only numbers and forward slash (for track format like 5/12)."""
+        text = field.text()
+        cursor_pos = field.cursorPosition()
+        # Allow only digits and forward slash
+        cleaned = ''.join(c for c in text if c.isdigit() or c == '/')
+        if cleaned != text:
+            field.blockSignals(True)
+            field.setText(cleaned)
+            field.setCursorPosition(min(cursor_pos, len(cleaned)))
+            field.blockSignals(False)
+
+    def _sanitize_filename(self, text: str) -> str:
+        """Sanitize text for use in filename by replacing invalid characters."""
+        # Replace invalid filename characters with underscores or alternatives
+        replacements = {
+            '\\': ' backslash ',
+            '/': ' slash ',
+            ':': ' ',
+            '*': '_',
+            '?': ' ',
+            '"': "'",
+            '<': '[',
+            '>': ']',
+            '|': '_'
+        }
+        result = text
+        for invalid, replacement in replacements.items():
+            result = result.replace(invalid, replacement)
+        return result.strip()
+
+    def _format_number_for_filename(self, value: str | int | float) -> str:
+        """Format a number without .0 for integers. If value contains '/', use only the first number."""
+        try:
+            # Handle track format like "5/12" - use only first number
+            if isinstance(value, str) and "/" in value:
+                value = value.split("/")[0].strip()
+            num = float(value) if isinstance(value, str) else value
+            return str(int(num)) if num == int(num) else str(num)
+        except (ValueError, TypeError):
+            return str(value)
+
+    def _generate_filename(self, json_data: dict) -> str:
+        """Generate filename from JSON metadata: {3 padded track}. {Artist} - {Title} ({CoverArtist}.v{Version}).mp3"""
+        track = json_data.get(MetadataFields.TRACK, "1")
+        artist = json_data.get(MetadataFields.ARTIST, "Unknown")
+        title = json_data.get(MetadataFields.TITLE, "Untitled")
+        cover_artist = json_data.get(MetadataFields.COVER_ARTIST, "Unknown")
+        version = json_data.get(MetadataFields.VERSION, "1")
+        
+        # Format track with 3-digit padding
+        track_num = self._format_number_for_filename(track)
+        track_padded = str(track_num).zfill(3)
+        
+        # Format version without .0
+        version_formatted = self._format_number_for_filename(version)
+        
+        # Sanitize all parts
+        artist_safe = self._sanitize_filename(artist)
+        title_safe = self._sanitize_filename(title)
+        cover_artist_safe = self._sanitize_filename(cover_artist)
+        
+        # Build filename
+        if str(cover_artist).strip() in ("Neuro", "Evil"):
+            filename_suffix = f"({cover_artist_safe}.v{version_formatted})"
+        else:
+            filename_suffix = f"(Duet.v{version_formatted}) ({cover_artist_safe})"
+        filename = f"{track_padded}. {artist_safe} - {title_safe} {filename_suffix}.mp3"
+        return filename
 
     def create_song_edit_tab(self):
         """Create song metadata editor for adding new songs."""
@@ -69,9 +185,6 @@ class SongEditorManager:
         layout.setContentsMargins(8, 8, 8, 8)
         layout.setSpacing(8)
 
-        title = QLabel("➕ Add New Songs")
-        title.setStyleSheet("font-weight: bold; font-size: 11pt;")
-        layout.addWidget(title)
 
         splitter = QSplitter(Qt.Orientation.Vertical)
         splitter.setChildrenCollapsible(False)
@@ -91,7 +204,7 @@ class SongEditorManager:
         self.source_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         source_row.addWidget(self.source_label, 1)
 
-        pick_btn = QPushButton("Choose Source")
+        pick_btn = QPushButton("Add New Song")
         pick_btn.clicked.connect(self.pick_source_file)
         source_row.addWidget(pick_btn)
         editor_layout.addLayout(source_row)
@@ -115,16 +228,10 @@ class SongEditorManager:
         id3_form = QFormLayout(id3_group)
         self.id3_fields = self._create_id3_fields(id3_form)
 
-        preset_row = QHBoxLayout()
-        preset_label = QLabel("Preset:")
-        preset_row.addWidget(preset_label)
-        self.preset_combo = NoScrollComboBox()
-        self._load_presets()
-        preset_row.addWidget(self.preset_combo, 1)
-        preset_apply = QPushButton("Apply Preset to ID3")
-        preset_apply.clicked.connect(self.apply_preset_to_id3)
-        preset_row.addWidget(preset_apply)
-        id3_form.addRow(preset_row)
+        # Initialize default JSON/ID3 values on first load
+        self._fill_json_fields({})
+        self._fill_id3_fields({})
+
         scroll_layout.addWidget(id3_group)
 
         # Cover
@@ -134,16 +241,12 @@ class SongEditorManager:
         self.cover_label.setFixedSize(160, 160)
         self.cover_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.cover_label.setStyleSheet("border: 1px solid #3d3d3d;")
-        cover_layout.addWidget(self.cover_label, 0, Qt.AlignmentFlag.AlignLeft)
+        cover_layout.addWidget(self.cover_label, 0, Qt.AlignmentFlag.AlignHCenter)
 
         cover_btns = QHBoxLayout()
         load_cover_btn = QPushButton("Load Cover")
         load_cover_btn.clicked.connect(self.load_cover_from_file)
         cover_btns.addWidget(load_cover_btn)
-
-        from_source_btn = QPushButton("Use Source Cover")
-        from_source_btn.clicked.connect(self.load_cover_from_source)
-        cover_btns.addWidget(from_source_btn)
 
         clear_cover_btn = QPushButton("Clear")
         clear_cover_btn.clicked.connect(self.clear_cover)
@@ -157,20 +260,20 @@ class SongEditorManager:
 
         # Editor buttons
         editor_btns = QHBoxLayout()
-        add_btn = QPushButton("Add to List")
-        add_btn.setStyleSheet("background-color: #0d47a1; color: white;")
-        add_btn.clicked.connect(self.add_or_update_pending)
-        editor_btns.addWidget(add_btn)
+        self.add_btn = QPushButton("Add to List")
+        self.add_btn.clicked.connect(self.add_or_update_pending)
+        editor_btns.addWidget(self.add_btn)
 
-        update_btn = QPushButton("Update Selected")
-        update_btn.clicked.connect(self.update_selected_pending)
-        editor_btns.addWidget(update_btn)
+        self.update_btn = QPushButton("Update Selected")
+        self.update_btn.clicked.connect(self.update_selected_pending)
+        editor_btns.addWidget(self.update_btn)
 
         reset_btn = QPushButton("Reset")
         reset_btn.clicked.connect(self.reset_editor)
         editor_btns.addWidget(reset_btn)
         editor_btns.addStretch()
         editor_layout.addLayout(editor_btns)
+        self._update_action_button_styles()
 
         splitter.addWidget(editor_panel)
 
@@ -185,14 +288,42 @@ class SongEditorManager:
         pending_layout.addWidget(pending_label)
 
         self.pending_tree = QTreeWidget()
-        self.pending_tree.setColumnCount(5)
-        self.pending_tree.setHeaderLabels(["Filename", "Title", "Artist", "Track", "Date"])
+        self.pending_tree.setColumnCount(6)
+        self.pending_tree.setHeaderLabels(["Source File", "Filename", "Title", "Artist", "Track", "Date"])
         self.pending_tree.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
-        self.pending_tree.itemClicked.connect(self._on_pending_selected)
+        self.pending_tree.itemDoubleClicked.connect(self._on_pending_play_song)
+        self.pending_tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.pending_tree.customContextMenuRequested.connect(self._on_pending_right_click)
+        
+        # Apply styling with column separators like main tree
         self.pending_tree.setStyleSheet("""
-            QTreeWidget { background-color: #252525; border: 1px solid #3d3d3d; }
+            QTreeWidget {
+                background-color: #252525;
+                border: 1px solid #3d3d3d;
+                gridline-color: #3d3d3d;
+            }
+            QTreeWidget::item {
+                border-right: 1px solid #3d3d3d;
+                padding: 2px;
+            }
             QTreeWidget::item:selected { background-color: #0d47a1; }
+            QHeaderView::section {
+                background-color: #2d2d2d;
+                color: #ffffff;
+                padding: 4px;
+                border: none;
+                border-right: 1px solid #555555;
+                border-bottom: 1px solid #555555;
+            }
         """)
+        
+        # Load saved column widths or set defaults
+        pending_widths = SettingsManager.pending_column_widths or [180, 250, 150, 120, 60, 80]
+        header = self.pending_tree.header()
+        for i, width in enumerate(pending_widths):
+            self.pending_tree.setColumnWidth(i, width)
+        header.sectionResized.connect(self._on_pending_column_resized)
+        
         pending_layout.addWidget(self.pending_tree, 1)
 
         pending_btns = QHBoxLayout()
@@ -218,56 +349,284 @@ class SongEditorManager:
         return frame
 
     def _create_json_fields(self, form: QFormLayout) -> dict[str, QLineEdit]:
-        fields = {
-            MetadataFields.TITLE: "Title",
-            MetadataFields.ARTIST: "Artist",
-            MetadataFields.COVER_ARTIST: "Cover Artist",
-            MetadataFields.DATE: "Date",
-            MetadataFields.VERSION: "Version",
-            MetadataFields.DISC: "Disc",
-            MetadataFields.TRACK: "Track",
-            MetadataFields.COMMENT: "Comment",
-            MetadataFields.SPECIAL: "Special",
-        }
+        form.setLabelAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
+        
+        h_scale = self._scale(32)
+        label_w1 = self._scale(140)
+        label_w2 = self._scale(75)
+        label_w3 = self._scale(100)
+        spacing = self._scale(12)
+        
         out: dict[str, QLineEdit] = {}
-        for key, label in fields.items():
-            edit = QLineEdit()
-            form.addRow(f"{label}:", edit)
-            out[key] = edit
+        
+        # Row 1: Title (full width)
+        title_edit = QLineEdit()
+        title_edit.setFixedHeight(h_scale)
+        self._style_input_field(title_edit)
+        form.addRow("Title:", title_edit)
+        out[MetadataFields.TITLE] = title_edit
+        
+        # Row 2: Artist (full width)
+        artist_edit = QLineEdit()
+        artist_edit.setFixedHeight(h_scale)
+        self._style_input_field(artist_edit)
+        form.addRow("Artist:", artist_edit)
+        out[MetadataFields.ARTIST] = artist_edit
+        
+        # Row 3: Cover Artist, Version, Date (compact)
+        compact_row1 = QHBoxLayout()
+        compact_row1.setSpacing(spacing)
+        compact_row1.setContentsMargins(0, 0, 0, 0)
+        compact_row1.setAlignment(Qt.AlignmentFlag.AlignVCenter)
+        
+        cover_artist_label = QLabel("Cover Artist:")
+        cover_artist_label.setMaximumWidth(label_w1)
+        cover_artist_label.setFixedHeight(h_scale)
+        cover_artist_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        cover_artist_edit = QLineEdit()
+        cover_artist_edit.setFixedHeight(h_scale)
+        self._style_input_field(cover_artist_edit)
+        compact_row1.addWidget(cover_artist_label)
+        compact_row1.addWidget(cover_artist_edit, 1)
+        out[MetadataFields.COVER_ARTIST] = cover_artist_edit
+        
+        version_label = QLabel("Version:")
+        version_label.setMaximumWidth(label_w2)
+        version_label.setFixedHeight(h_scale)
+        version_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        version_edit = QLineEdit()
+        version_edit.setFixedHeight(h_scale)
+        self._style_input_field(version_edit)
+        version_edit.textChanged.connect(lambda: self._validate_numeric_field(version_edit))
+        compact_row1.addWidget(version_label)
+        compact_row1.addWidget(version_edit, 1)
+        out[MetadataFields.VERSION] = version_edit
+        
+        date_label = QLabel("Year:")
+        date_label.setMaximumWidth(label_w3)
+        date_label.setFixedHeight(h_scale)
+        date_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        date_edit = QLineEdit()
+        date_edit.setFixedHeight(h_scale)
+        self._style_input_field(date_edit)
+        compact_row1.addWidget(date_label)
+        compact_row1.addWidget(date_edit, 1)
+        out[MetadataFields.DATE] = date_edit
+        form.addRow(compact_row1)
+        
+        # Row 4: Disc, Track, Special (compact)
+        compact_row2 = QHBoxLayout()
+        compact_row2.setSpacing(spacing)
+        compact_row2.setContentsMargins(0, 0, 0, 0)
+        compact_row2.setAlignment(Qt.AlignmentFlag.AlignVCenter)
+        
+        disc_label = QLabel("Disc:")
+        disc_label.setMaximumWidth(label_w1)
+        disc_label.setFixedHeight(h_scale)
+        disc_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        disc_edit = QLineEdit()
+        disc_edit.setFixedHeight(h_scale)
+        self._style_input_field(disc_edit)
+        disc_edit.textChanged.connect(lambda: self._validate_numeric_field(disc_edit))
+        compact_row2.addWidget(disc_label)
+        compact_row2.addWidget(disc_edit, 1)
+        out[MetadataFields.DISC] = disc_edit
+        
+        track_label = QLabel("Track:")
+        track_label.setMaximumWidth(label_w2)
+        track_label.setFixedHeight(h_scale)
+        track_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        track_edit = QLineEdit()
+        track_edit.setFixedHeight(h_scale)
+        self._style_input_field(track_edit)
+        track_edit.textChanged.connect(lambda: self._validate_track_field(track_edit))
+        compact_row2.addWidget(track_label)
+        compact_row2.addWidget(track_edit, 1)
+        out[MetadataFields.TRACK] = track_edit
+        
+        special_label = QLabel("Special:")
+        special_label.setMaximumWidth(label_w3)
+        special_label.setFixedHeight(h_scale)
+        special_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        special_edit = QLineEdit()
+        special_edit.setFixedHeight(h_scale)
+        self._style_input_field(special_edit)
+        special_edit.textChanged.connect(lambda: self._validate_numeric_field(special_edit))
+        compact_row2.addWidget(special_label)
+        compact_row2.addWidget(special_edit, 1)
+        out[MetadataFields.SPECIAL] = special_edit
+        form.addRow(compact_row2)
+        
+        # Row 5: Comment (full width)
+        comment_edit = QLineEdit()
+        comment_edit.setFixedHeight(h_scale)
+        self._style_input_field(comment_edit)
+        form.addRow("Comment:", comment_edit)
+        out[MetadataFields.COMMENT] = comment_edit
+        
+        # Row 6: xxHash (full width, read-only)
+        xxhash_display = QLabel("-")
+        xxhash_display.setStyleSheet("color: #888888; font-style: italic;")
+        xxhash_display.setFixedHeight(h_scale)
+        form.addRow("xxHash:", xxhash_display)
+        out["xxHash"] = xxhash_display
+        
+        # Connect signals to update ID3 display fields when JSON fields change
+        if MetadataFields.DISC in out:
+            out[MetadataFields.DISC].textChanged.connect(self._update_id3_from_json)
+        if MetadataFields.TRACK in out:
+            out[MetadataFields.TRACK].textChanged.connect(self._update_id3_from_json)
+        if MetadataFields.DATE in out:
+            out[MetadataFields.DATE].textChanged.connect(self._update_id3_from_json)
+        if MetadataFields.COMMENT in out:
+            out[MetadataFields.COMMENT].textChanged.connect(self._update_id3_from_json)
+        
         return out
 
     def _create_id3_fields(self, form: QFormLayout) -> dict[str, QLineEdit]:
-        fields = {
-            "Title": "Title",
-            "Artist": "Artist",
-            "Album": "Album",
-            "Track": "Track",
-            "Discnumber": "Disc",
-            "Date": "Date",
-            "AlbumArtist": "Album Artist",
-        }
+        form.setLabelAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
+        
+        h_scale = self._scale(32)
+        label_w1 = self._scale(110)
+        label_w2 = self._scale(65)
+        label_w3 = self._scale(50)
+        spacing = self._scale(12)
+        
         out: dict[str, QLineEdit] = {}
-        for key, label in fields.items():
-            edit = QLineEdit()
-            if key == "AlbumArtist":
-                edit.setText(ALBUM_ARTIST)
-                edit.setReadOnly(True)
-            form.addRow(f"{label}:", edit)
-            out[key] = edit
+        
+        # Row 0: Preset selector with Apply button
+        preset_row = QHBoxLayout()
+        preset_row.setSpacing(spacing)
+        preset_row.setContentsMargins(0, 0, 0, 0)
+        preset_row.setAlignment(Qt.AlignmentFlag.AlignVCenter)
+        
+        self.preset_combo = NoScrollComboBox()
+        self.preset_combo.setFixedHeight(h_scale)
+        self.preset_combo.setMinimumWidth(self._scale(220))
+        self.preset_combo.setStyleSheet("""
+            QComboBox {
+                background-color: #1e1e1e;
+                color: #ffffff;
+                border: 1px solid #3d3d3d;
+                border-radius: 4px;
+                padding: 4px;
+            }
+        """)
+        self._load_presets()
+        preset_row.addWidget(self.preset_combo, 1)
+        
+        apply_preset_btn = QPushButton("Apply")
+        apply_preset_btn.setFixedHeight(h_scale)
+        apply_preset_btn.setMaximumWidth(self._scale(80))
+        apply_preset_btn.clicked.connect(self.apply_preset_to_id3)
+        preset_row.addWidget(apply_preset_btn)
+
+        clear_preset_btn = QPushButton("Clear")
+        clear_preset_btn.setFixedHeight(h_scale)
+        clear_preset_btn.setMaximumWidth(self._scale(80))
+        clear_preset_btn.clicked.connect(lambda: self.preset_combo.setCurrentIndex(-1))
+        preset_row.addWidget(clear_preset_btn)
+        
+        form.addRow("Preset:", preset_row)
+        
+        # Row 1: Title (full width)
+        title_edit = QLineEdit()
+        title_edit.setFixedHeight(h_scale)
+        self._style_input_field(title_edit)
+        form.addRow("Title:", title_edit)
+        out["Title"] = title_edit
+        
+        # Row 2: Artist (full width)
+        artist_edit = QLineEdit()
+        artist_edit.setFixedHeight(h_scale)
+        self._style_input_field(artist_edit)
+        form.addRow("Artist:", artist_edit)
+        out["Artist"] = artist_edit
+        
+        # Row 3: Album (full width)
+        album_edit = QLineEdit()
+        album_edit.setFixedHeight(h_scale)
+        self._style_input_field(album_edit)
+        form.addRow("Album:", album_edit)
+        out["Album"] = album_edit
+        
+        # Row 4: Disc, Track, Date (compact, display-only, driven by JSON)
+        compact_row = QHBoxLayout()
+        compact_row.setSpacing(spacing)
+        compact_row.setContentsMargins(0, 0, 0, 0)
+        compact_row.setAlignment(Qt.AlignmentFlag.AlignVCenter)
+        
+        disc_label = QLabel("Disc:")
+        disc_label.setMaximumWidth(label_w1)
+        disc_label.setFixedHeight(h_scale)
+        disc_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        disc_display = QLabel("-")
+        disc_display.setFixedHeight(h_scale)
+        disc_display.setStyleSheet("color: #888888;")
+        disc_display.setAlignment(Qt.AlignmentFlag.AlignVCenter)
+        compact_row.addWidget(disc_label)
+        compact_row.addWidget(disc_display, 1)
+        out["Discnumber"] = disc_display
+        
+        track_label = QLabel("Track:")
+        track_label.setMaximumWidth(label_w2)
+        track_label.setFixedHeight(h_scale)
+        track_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        track_display = QLabel("-")
+        track_display.setFixedHeight(h_scale)
+        track_display.setStyleSheet("color: #888888;")
+        track_display.setAlignment(Qt.AlignmentFlag.AlignVCenter)
+        compact_row.addWidget(track_label)
+        compact_row.addWidget(track_display, 1)
+        out["Track"] = track_display
+        
+        date_label = QLabel("Date:")
+        date_label.setMaximumWidth(label_w3)
+        date_label.setFixedHeight(h_scale)
+        date_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        date_display = QLabel("-")
+        date_display.setFixedHeight(h_scale)
+        date_display.setStyleSheet("color: #888888;")
+        date_display.setAlignment(Qt.AlignmentFlag.AlignVCenter)
+        compact_row.addWidget(date_label)
+        compact_row.addWidget(date_display, 1)
+        out["Date"] = date_display
+        form.addRow(compact_row)
+        
+        # Row 5: COMM:eng preview (shows what will be written to ID3)
+        comm_eng_display = QLabel("-")
+        comm_eng_display.setStyleSheet("color: #888888;")
+        comm_eng_display.setFixedHeight(h_scale)
+        comm_eng_display.setAlignment(Qt.AlignmentFlag.AlignVCenter)
+        form.addRow("COMM:eng:", comm_eng_display)
+        out["COMM_eng_preview"] = comm_eng_display
+        
+        # Row 6: Filename (auto-generated from JSON, display-only)
+        filename_display = QLabel("-")
+        filename_display.setStyleSheet("color: #888888; font-style: italic;")
+        filename_display.setFixedHeight(h_scale)
+        filename_display.setAlignment(Qt.AlignmentFlag.AlignVCenter)
+        form.addRow("Filename:", filename_display)
+        out["Filename"] = filename_display
+        
         return out
 
     def _load_presets(self) -> None:
-        if not self.preset_combo:
+        if self.preset_combo is None:
             return
         self.preset_combo.clear()
         try:
-            presets = self.preset_service.list_presets()
+            presets = self.preset_service.list_presets() or []
             if not presets:
-                presets = ["Default", "TuruuMGL", "mm2wood"]
-            self.preset_combo.addItems(sorted(presets))
+                presets = [p.stem for p in SettingsManager.get_presets_folder().glob("*.json")]
+            if presets:
+                self.preset_combo.addItems(sorted(presets))
         except Exception as e:
             print(f"Error loading presets: {e}")
-            self.preset_combo.addItems(["Default", "TuruuMGL", "mm2wood"])
+            import traceback
+            traceback.print_exc()
 
     def pick_source_file(self) -> None:
         file_path, _ = QFileDialog.getOpenFileName(
@@ -281,15 +640,36 @@ class SongEditorManager:
         self.load_from_path(file_path)
 
     def copy_as_new_song(self, file_data: dict) -> None:
-        file_path = file_data.get("path", "")
-        if not file_path:
-            return
-        self.load_from_path(file_path, file_data.get("raw_json"))
+        """Copy only Title and Artist from selected song, don't change source."""
+        raw_json = file_data.get("raw_json", {})
+        title = raw_json.get(MetadataFields.TITLE, "")
+        artist = raw_json.get(MetadataFields.ARTIST, "")
+        
+        # Only fill Title and Artist fields
+        if MetadataFields.TITLE in self.json_fields:
+            self.json_fields[MetadataFields.TITLE].setText(title)
+        if MetadataFields.ARTIST in self.json_fields:
+            self.json_fields[MetadataFields.ARTIST].setText(artist)
+        
+        # Don't change source or other fields, just copy these two values
+        self.current_edit_id = None
 
     def load_from_path(self, file_path: str, json_data: dict | None = None) -> None:
         jsond = json_data or extract_json_from_song(file_path) or {}
         id3 = get_id3_tags(file_path)
         cover = get_cover_art(file_path)
+
+        # Remux and compute xxHash when file is chosen
+        try:
+            temp_output = Path(file_path).parent / f"temp_{Path(file_path).stem}.mp3"
+            remux_song(file_path, str(temp_output))
+            xxhash_value = get_audio_hash(str(temp_output)) or ""
+            if temp_output.exists():
+                temp_output.unlink()
+            if xxhash_value:
+                jsond["xxHash"] = xxhash_value
+        except Exception as e:
+            print(f"Warning: Could not compute xxHash: {e}")
 
         self._current_cover_bytes = cover
         self._apply_cover_preview(cover)
@@ -298,6 +678,7 @@ class SongEditorManager:
         self._fill_json_fields(jsond)
         self._fill_id3_fields(id3)
         self.current_edit_id = None
+        self._update_action_button_styles()
 
     def _set_source_label(self, path: str) -> None:
         if self.source_label:
@@ -314,15 +695,117 @@ class SongEditorManager:
             self.source_label.setToolTip(path)
 
     def _fill_json_fields(self, jsond: dict) -> None:
+        today = datetime.now().strftime("%Y-%m-%d")
+        
         for key, field in self.json_fields.items():
-            field.setText(str(jsond.get(key, "")))
+            if key == "xxHash":
+                # xxHash is display-only
+                if isinstance(field, QLabel):
+                    xxhash_val = jsond.get("xxHash", "-")
+                    field.setText(str(xxhash_val) if xxhash_val else "-")
+            else:
+                if hasattr(field, 'setText'):
+                    value = jsond.get(key, "")
+                    # Set defaults for Special, Date, and Comment
+                    if key == MetadataFields.SPECIAL and not value:
+                        value = "0"
+                    elif key == MetadataFields.DATE and not value:
+                        value = self._persistent_date or today
+                    elif key == MetadataFields.COMMENT and not value:
+                        value = "None"
+                    field.setText(str(value))
+        # Sync comment to ID3 display
+        self._sync_comment_to_id3(jsond.get(MetadataFields.COMMENT, ""))
+        # Update ID3 display fields (Disc, Track, Date) from JSON
+        self._update_id3_display_fields(jsond)
+        # Update filename display and COMM:eng preview
+        self._update_filename_display(jsond)
+        self._update_comm_eng_preview(jsond)
+
+    def _update_id3_display_fields(self, jsond: dict) -> None:
+        """Update the display-only ID3 fields from JSON field values."""
+        # Read from self.json_fields UI widgets, not from jsond parameter
+        if "Discnumber" in self.id3_fields:
+            field = self.id3_fields["Discnumber"]
+            if isinstance(field, QLabel):
+                disc_val = ""
+                if MetadataFields.DISC in self.json_fields:
+                    json_field = self.json_fields[MetadataFields.DISC]
+                    if hasattr(json_field, 'text'):
+                        disc_val = json_field.text().strip()
+                field.setText(str(disc_val) if disc_val else "-")
+        
+        if "Track" in self.id3_fields:
+            field = self.id3_fields["Track"]
+            if isinstance(field, QLabel):
+                track_val = ""
+                if MetadataFields.TRACK in self.json_fields:
+                    json_field = self.json_fields[MetadataFields.TRACK]
+                    if hasattr(json_field, 'text'):
+                        track_val = json_field.text().strip()
+                field.setText(str(track_val) if track_val else "-")
+        
+        if "Date" in self.id3_fields:
+            field = self.id3_fields["Date"]
+            if isinstance(field, QLabel):
+                date_val = ""
+                if MetadataFields.DATE in self.json_fields:
+                    json_field = self.json_fields[MetadataFields.DATE]
+                    if hasattr(json_field, 'text'):
+                        full_date = json_field.text().strip()
+                        # Extract just the year from yyyy-mm-dd format
+                        if full_date and len(full_date) >= 4:
+                            date_val = full_date[:4]
+                        else:
+                            date_val = full_date
+                field.setText(str(date_val) if date_val else "-")
+
+    def _update_id3_from_json(self) -> None:
+        """Update ID3 display fields and previews when JSON fields change."""
+        self._update_id3_display_fields({})
+        # Also update COMM:eng preview
+        json_data = self._collect_json_data()
+        self._update_comm_eng_preview(json_data)
+        self._update_filename_display(json_data)
 
     def _fill_id3_fields(self, id3: dict) -> None:
         for key, field in self.id3_fields.items():
-            if key == "AlbumArtist":
-                field.setText(ALBUM_ARTIST)
+            if key == "Filename":
+                # Filename is auto-generated, skip
+                continue
+            if isinstance(field, QLabel):
+                # Skip label fields
                 continue
             field.setText(str(id3.get(key, "")))
+
+    def _update_filename_display(self, jsond: dict) -> None:
+        """Update the filename display based on JSON data."""
+        if "Filename" in self.id3_fields:
+            filename_field = self.id3_fields["Filename"]
+            if isinstance(filename_field, QLabel):
+                filename = self._generate_filename(jsond)
+                filename_field.setText(filename)
+        # Update COMM:eng preview
+        self._update_comm_eng_preview(jsond)
+
+    def _update_comm_eng_preview(self, jsond: dict) -> None:
+        """Update the COMM:eng preview based on JSON data."""
+        if "COMM_eng_preview" not in self.id3_fields:
+            return
+        field = self.id3_fields["COMM_eng_preview"]
+        if not isinstance(field, QLabel):
+            return
+        
+        comment_text = jsond.get(MetadataFields.COMMENT)
+        date_str = jsond.get(MetadataFields.DATE, datetime.now().strftime("%Y-%m-%d"))
+        
+        # If comment is None or "None" string, just use date
+        if comment_text is None or str(comment_text).strip().lower() == "none":
+            comm_text = date_str
+        else:
+            comm_text = f"{date_str} //{comment_text}"
+        
+        field.setText(comm_text)
 
     def _apply_cover_preview(self, cover_bytes: bytes | None) -> None:
         if not self.cover_label:
@@ -377,16 +860,44 @@ class SongEditorManager:
     def _collect_json_data(self) -> dict:
         data = {}
         for key, field in self.json_fields.items():
-            data[key] = field.text().strip()
+            if key == "xxHash":
+                # xxHash is display-only, get from label
+                if isinstance(field, QLabel):
+                    xxhash_val = field.text().strip()
+                    if xxhash_val and xxhash_val != "-":
+                        data[key] = xxhash_val
+            else:
+                if hasattr(field, 'text'):
+                    data[key] = field.text().strip()
+        # Sync comment to ID3 display
+        self._sync_comment_to_id3(data.get(MetadataFields.COMMENT, ""))
+        # Update filename display
+        self._update_filename_display(data)
         return data
+
+    def _sync_comment_to_id3(self, comment_text: str) -> None:
+        """Update ID3 comment display with JSON comment text."""
+        if "Comment" in self.id3_fields:
+            comment_field = self.id3_fields["Comment"]
+            if isinstance(comment_field, QLabel):
+                comment_field.setText(comment_text if comment_text else "(empty)")
 
     def _collect_id3_data(self) -> dict:
         data = {}
         for key, field in self.id3_fields.items():
-            if key == "AlbumArtist":
-                data[key] = ALBUM_ARTIST
+            # Skip fields that come from JSON (Discnumber, Track, Date)
+            if key in ("Discnumber", "Track", "Date", "COMM_eng_preview", "Filename"):
+                continue
+            if key == "Comment":
+                # Comment is always taken from JSON
+                data[key] = self.json_fields.get(MetadataFields.COMMENT, QLineEdit()).text().strip()
             else:
-                data[key] = field.text().strip()
+                data[key] = field.text().strip() if isinstance(field, QLineEdit) else ""
+        # Add Disc, Track, Date from JSON data
+        data["Discnumber"] = self.json_fields.get(MetadataFields.DISC, QLineEdit()).text().strip() if MetadataFields.DISC in self.json_fields else ""
+        data["Track"] = self.json_fields.get(MetadataFields.TRACK, QLineEdit()).text().strip() if MetadataFields.TRACK in self.json_fields else ""
+        data["Date"] = self.json_fields.get(MetadataFields.DATE, QLineEdit()).text().strip() if MetadataFields.DATE in self.json_fields else ""
+        data["AlbumArtist"] = ALBUM_ARTIST
         return data
 
     def _new_entry_id(self) -> int:
@@ -406,7 +917,7 @@ class SongEditorManager:
         entry = {
             "id": self._new_entry_id() if self.current_edit_id is None else self.current_edit_id,
             "source_path": source_path,
-            "filename": Path(source_path).name,
+            "filename": self._generate_filename(json_data),
             "json": json_data,
             "id3": id3_data,
             "cover": self._current_cover_bytes,
@@ -419,6 +930,7 @@ class SongEditorManager:
 
         self.refresh_pending_tree()
         self.current_edit_id = None
+        self.reset_editor()
         self._auto_increment_track()
 
     def update_selected_pending(self) -> None:
@@ -441,7 +953,10 @@ class SongEditorManager:
         items = sorted(self.pending_songs, key=lambda x: x.get("filename", "").lower())
         for entry in items:
             json_data = entry.get("json", {})
+            source_path = entry.get("source_path", "")
+            source_filename = Path(source_path).name if source_path else ""
             item = QTreeWidgetItem([
+                source_filename,
                 entry.get("filename", ""),
                 json_data.get(MetadataFields.TITLE, ""),
                 json_data.get(MetadataFields.ARTIST, ""),
@@ -451,7 +966,59 @@ class SongEditorManager:
             item.setData(0, Qt.ItemDataRole.UserRole, entry.get("id"))
             self.pending_tree.addTopLevelItem(item)
 
-    def _on_pending_selected(self, item: QTreeWidgetItem) -> None:
+    def _on_pending_play_song(self, item: QTreeWidgetItem, column: int) -> None:
+        """Play the source song file on double-click."""
+        entry_id = item.data(0, Qt.ItemDataRole.UserRole)
+        for entry in self.pending_songs:
+            if entry.get("id") == entry_id:
+                source_path = entry.get("source_path", "")
+                if source_path and Path(source_path).exists():
+                    try:
+                        from df_metadata_customizer.ui.platform_utils import open_file_with_default_app
+                        open_file_with_default_app(source_path)
+                    except Exception as e:
+                        QMessageBox.warning(self.parent, "Error", f"Cannot play file: {e}")
+                return
+
+    def _on_pending_column_resized(self, logicalIndex: int, oldSize: int, newSize: int) -> None:
+        """Save pending column widths when user resizes columns."""
+        try:
+            if not self.pending_tree:
+                return
+            widths = [self.pending_tree.columnWidth(i) for i in range(self.pending_tree.columnCount())]
+            SettingsManager.pending_column_widths = widths
+        except Exception as e:
+            print(f"Error saving pending column widths: {e}")
+
+    def _on_pending_right_click(self, position) -> None:
+        """Show context menu for pending songs."""
+        item = self.pending_tree.itemAt(position)
+        if not item:
+            return
+        
+        menu = QMenu(self.parent)
+        menu.setStyleSheet("""
+            QMenu {
+                background-color: #1e1e1e;
+                color: #ffffff;
+            }
+            QMenu::item:selected {
+                background-color: #0d47a1;
+            }
+        """)
+        
+        edit_action = menu.addAction("✏️ Edit")
+        edit_action.triggered.connect(lambda: self._load_pending_entry(item))
+        
+        menu.addSeparator()
+        
+        remove_action = menu.addAction("🗑️ Remove")
+        remove_action.triggered.connect(lambda: self._remove_pending_by_item(item))
+        
+        menu.exec(QCursor.pos())
+
+    def _load_pending_entry(self, item: QTreeWidgetItem) -> None:
+        """Load a pending entry into the editor."""
         entry_id = item.data(0, Qt.ItemDataRole.UserRole)
         for entry in self.pending_songs:
             if entry.get("id") == entry_id:
@@ -461,7 +1028,17 @@ class SongEditorManager:
                 self._fill_id3_fields(entry.get("id3", {}))
                 self._current_cover_bytes = entry.get("cover")
                 self._apply_cover_preview(self._current_cover_bytes)
+                self._update_action_button_styles()
                 return
+
+    def _remove_pending_by_item(self, item: QTreeWidgetItem) -> None:
+        """Remove a pending entry by item reference."""
+        entry_id = item.data(0, Qt.ItemDataRole.UserRole)
+        self.pending_songs = [e for e in self.pending_songs if e.get("id") != entry_id]
+        if self.current_edit_id == entry_id:
+            self.current_edit_id = None
+            self._update_action_button_styles()
+        self.refresh_pending_tree()
 
     def remove_selected_pending(self) -> None:
         if not self.pending_tree:
@@ -477,6 +1054,7 @@ class SongEditorManager:
     def clear_pending_list(self) -> None:
         self.pending_songs = []
         self.current_edit_id = None
+        self._update_action_button_styles()
         if self.pending_tree:
             self.pending_tree.clear()
 
@@ -487,27 +1065,80 @@ class SongEditorManager:
         self._current_cover_bytes = None
         self._apply_cover_preview(None)
         self.current_edit_id = None
+        self._update_action_button_styles()
+        
+        # Set defaults
+        today = datetime.now().strftime("%Y-%m-%d")
+        
+        # Set Special to 0 by default
+        if MetadataFields.SPECIAL in self.json_fields:
+            self.json_fields[MetadataFields.SPECIAL].setText("0")
+        
+        # Set Date to today if not already set or use persistent date
+        if MetadataFields.DATE in self.json_fields:
+            if self._persistent_date:
+                self.json_fields[MetadataFields.DATE].setText(self._persistent_date)
+            else:
+                self.json_fields[MetadataFields.DATE].setText(today)
+        
+        # Comment should be None by default
+        if MetadataFields.COMMENT in self.json_fields:
+            self.json_fields[MetadataFields.COMMENT].setText("None")
+
+    def _update_action_button_styles(self) -> None:
+        if not self.add_btn or not self.update_btn:
+            return
+        active_style = "background-color: #0d47a1; color: white;"
+        inactive_style = ""
+        if self.current_edit_id is None:
+            self.add_btn.setStyleSheet(active_style)
+            self.update_btn.setStyleSheet(inactive_style)
+        else:
+            self.add_btn.setStyleSheet(inactive_style)
+            self.update_btn.setStyleSheet(active_style)
 
     def _auto_increment_track(self) -> None:
+        """Auto-increment track and keep disc consistent if they are set."""
+        # Keep persistent date
+        date_field = self.json_fields.get(MetadataFields.DATE)
+        if date_field:
+            self._persistent_date = date_field.text().strip()
+        
+        # Keep persistent disc
+        disc_field = self.json_fields.get(MetadataFields.DISC)
+        if disc_field:
+            disc_val = disc_field.text().strip()
+            if disc_val:
+                self._persistent_disc = disc_val
+        
+        # Auto-increment track if disc is set
         track_field = self.json_fields.get(MetadataFields.TRACK)
-        if not track_field:
+        if not track_field or not self._persistent_disc:
             return
+        
         next_track = self._next_track_number()
         if next_track is not None:
             track_field.setText(str(next_track))
 
     def _next_track_number(self) -> int | None:
+        """Get the next track number based on pending songs with same disc."""
+        if not self._persistent_disc:
+            return None
+        
         tracks = []
         for entry in self.pending_songs:
-            val = str(entry.get("json", {}).get(MetadataFields.TRACK, "")).strip()
-            if val.isdigit():
-                tracks.append(int(val))
+            disc_val = str(entry.get("json", {}).get(MetadataFields.DISC, "")).strip()
+            track_val = str(entry.get("json", {}).get(MetadataFields.TRACK, "")).strip()
+            # Only count tracks from the same disc
+            if disc_val == self._persistent_disc and track_val.isdigit():
+                tracks.append(int(track_val))
+        
         if not tracks:
             return None
         return max(tracks) + 1
 
     def apply_preset_to_id3(self) -> None:
-        if not self.preset_combo:
+        if self.preset_combo is None:
             return
         preset_name = self.preset_combo.currentText().strip()
         if not preset_name:
@@ -699,15 +1330,36 @@ class SongEditorManager:
         track = id3_data.get("Track") or json_data.get(MetadataFields.TRACK, "")
         disc = id3_data.get("Discnumber") or json_data.get(MetadataFields.DISC, "")
         date = id3_data.get("Date") or json_data.get(MetadataFields.DATE, "")
+        
+        # Extract year from date (yyyy-mm-dd -> yyyy) for TDRC tag
+        year = ""
+        if date:
+            date_str = str(date).strip()
+            if len(date_str) >= 4:
+                year = date_str[:4]
+            else:
+                year = date_str
 
         set_or_clear("TIT2", TIT2(encoding=3, text=str(title)) if title else None)
         set_or_clear("TPE1", TPE1(encoding=3, text=str(artist)) if artist else None)
         set_or_clear("TALB", TALB(encoding=3, text=str(album)) if album else None)
         set_or_clear("TRCK", TRCK(encoding=3, text=str(track)) if track else None)
         set_or_clear("TPOS", TPOS(encoding=3, text=str(disc)) if disc else None)
-        set_or_clear("TDRC", TDRC(encoding=3, text=str(date)) if date else None)
+        set_or_clear("TDRC", TDRC(encoding=3, text=year) if year else None)
         set_or_clear("TPE2", TPE2(encoding=3, text=ALBUM_ARTIST))
 
+        # Format COMM:eng with date and optional comment
+        tags.delall("COMM::eng")
+        comment_text = json_data.get(MetadataFields.COMMENT)
+        date_str = json_data.get(MetadataFields.DATE, datetime.now().strftime("%Y-%m-%d"))
+        # If comment is None or "None" string, just use date
+        if comment_text is None or str(comment_text).strip().lower() == "none":
+            comm_text = date_str
+        else:
+            comm_text = f"{date_str} //{comment_text}"
+        tags.add(COMM(encoding=3, lang="eng", desc="", text=comm_text))
+        
+        # Keep the JSON in ved language for compatibility
         tags.delall("COMM::ved")
         json_str = json.dumps(json_data, ensure_ascii=False, separators=(",", ":"))
         tags.add(COMM(encoding=3, lang="ved", desc="", text=json_str))

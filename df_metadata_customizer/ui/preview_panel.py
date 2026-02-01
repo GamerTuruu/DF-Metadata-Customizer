@@ -180,12 +180,16 @@ class PreviewPanelManager:
         artist_color = "#ffffff" if rule_applied.get(MetadataFields.ARTIST, False) else "#666666"
         album_color = "#ffffff" if rule_applied.get("Album", False) else "#666666"
 
+        title_style = "font-style: italic;" if not rule_applied.get(MetadataFields.TITLE, False) else ""
+        artist_style = "font-style: italic;" if not rule_applied.get(MetadataFields.ARTIST, False) else ""
+        album_style = "font-style: italic;" if not rule_applied.get("Album", False) else ""
+
         self.parent.preview_title_label.setText(preview_title)
-        self.parent.preview_title_label.setStyleSheet(preview_box_style + f"\n            QLabel {{ color: {title_color}; }}")
+        self.parent.preview_title_label.setStyleSheet(preview_box_style + f"\n            QLabel {{ color: {title_color}; {title_style}}}")
         self.parent.preview_artist_label.setText(preview_artist)
-        self.parent.preview_artist_label.setStyleSheet(preview_box_style + f"\n            QLabel {{ color: {artist_color}; }}")
+        self.parent.preview_artist_label.setStyleSheet(preview_box_style + f"\n            QLabel {{ color: {artist_color}; {artist_style}}}")
         self.parent.preview_album_label.setText(preview_album)
-        self.parent.preview_album_label.setStyleSheet(preview_box_style + f"\n            QLabel {{ color: {album_color}; }}")
+        self.parent.preview_album_label.setStyleSheet(preview_box_style + f"\n            QLabel {{ color: {album_color}; {album_style}}}")
         self.parent.preview_disc_label.setText(fmt_num(disc))
         self.parent.preview_track_label.setText(fmt_num(track))
         self.parent.preview_date_label.setText(date)

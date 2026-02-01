@@ -22,6 +22,7 @@ class SettingsManager:
     auto_reopen_last_folder: ClassVar[bool | None] = False
     column_order: ClassVar[list[str] | None] = None
     column_widths: ClassVar[dict[str, int]] = {}
+    pending_column_widths: ClassVar[list[int] | None] = None
     window_width: ClassVar[int] = 1400
     window_height: ClassVar[int] = 900
     splitter_sizes: ClassVar[list[int]] = []
@@ -80,6 +81,7 @@ class SettingsManager:
             "auto_reopen_last_folder": cls.auto_reopen_last_folder,
             "column_order": cls.column_order,
             "column_widths": cls.column_widths,
+            "pending_column_widths": cls.pending_column_widths,
             "window_width": cls.window_width,
             "window_height": cls.window_height,
             "splitter_sizes": cls.splitter_sizes,
@@ -106,6 +108,7 @@ class SettingsManager:
             cls.auto_reopen_last_folder = data.get("auto_reopen_last_folder")
             cls.column_order = data.get("column_order")
             cls.column_widths = data.get("column_widths", {})
+            cls.pending_column_widths = data.get("pending_column_widths")
             cls.window_width = data.get("window_width", 1400)
             cls.window_height = data.get("window_height", 900)
             cls.splitter_sizes = data.get("splitter_sizes", [])
