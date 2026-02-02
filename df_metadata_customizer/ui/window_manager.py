@@ -2,13 +2,13 @@
 
 import logging
 from typing import Optional
-from PyQt6.QtWidgets import (
+from PySide6.QtWidgets import (
     QMessageBox, QDialog, QVBoxLayout, QHBoxLayout, QLabel, 
     QComboBox, QCheckBox, QDoubleSpinBox, QPushButton, QScrollArea, 
     QFrame, QInputDialog
 )
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QIcon, QFont
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QIcon, QFont
 
 from df_metadata_customizer.core import SettingsManager
 

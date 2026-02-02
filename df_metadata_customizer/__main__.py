@@ -1,4 +1,4 @@
-"""Database Formatter entrypoint - Launcher for UI, API, or CLI."""
+"""Database Formatter entrypoint - Launcher for UI or CLI."""
 
 import sys
 from pathlib import Path
@@ -11,12 +11,9 @@ def main() -> None:
     """Main entry point - launches UI by default."""
     if len(sys.argv) > 1:
         cmd = sys.argv[1]
-        if cmd == "api":
-            # Launch API server
-            from df_metadata_customizer.api.server import main as api_main
-            api_main()
-        elif cmd == "cli":
-            # Launch CLI
+        if cmd == "cli":
+            # Launch CLI - remove 'cli' from argv so click can process remaining args
+            sys.argv.pop(1)
             from df_metadata_customizer.cli.commands import main as cli_main
             cli_main()
         elif cmd in ["-h", "--help"]:
@@ -40,13 +37,11 @@ Usage:
   python -m df_metadata_customizer [COMMAND]
 
 Commands:
-  (none)    Launch PyQt6 UI (default)
-  api       Launch REST API server (http://localhost:8000)
+  (none)    Launch PySide6 UI (default)
   cli       Launch Command-Line Interface
   
 Examples:
   python -m df_metadata_customizer          # Launch UI
-  python -m df_metadata_customizer api      # Start API server
   python -m df_metadata_customizer cli --help  # CLI help
 """)
 

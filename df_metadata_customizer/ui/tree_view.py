@@ -4,11 +4,11 @@ import json
 import logging
 from pathlib import Path
 from typing import List, Callable
-from PyQt6.QtWidgets import (
+from PySide6.QtWidgets import (
     QTreeWidget, QMenu, QMessageBox, QApplication, QAbstractItemView
 )
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QCursor
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QCursor
 
 from df_metadata_customizer.core import SettingsManager
 from df_metadata_customizer.ui.platform_utils import open_file_with_default_app, open_folder_with_file_manager

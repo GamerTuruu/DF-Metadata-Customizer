@@ -4,7 +4,7 @@ import json
 import re
 from pathlib import Path
 
-from PyQt6.QtCore import Qt
+from PySide6.QtCore import Qt
 
 from df_metadata_customizer.core.metadata import MetadataFields
 from df_metadata_customizer.core.song_utils import get_id3_tags

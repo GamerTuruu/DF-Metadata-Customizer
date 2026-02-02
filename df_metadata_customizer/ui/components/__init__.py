@@ -1,6 +1,6 @@
 """Menu bar setup and management."""
 
-from PyQt6.QtWidgets import QMenuBar
+from PySide6.QtWidgets import QMenuBar
 
 
 def setup_menubar(window, menubar: QMenuBar) -> None:

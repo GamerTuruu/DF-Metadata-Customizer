@@ -1,4 +1,4 @@
-"""PyQt6 Main Window - COMPLETE with ALL fixes and features."""
+"""PySide6 Main Window - COMPLETE with ALL fixes and features."""
 
 import sys
 import json
@@ -7,14 +7,14 @@ import contextlib
 from pathlib import Path
 from typing import Optional, Any, Dict, List
 
-from PyQt6.QtWidgets import (
+from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QSplitter, QPushButton,
     QLabel, QFrame, QScrollArea, QFileDialog, QMessageBox, QTreeWidget, QTreeWidgetItem,
     QLineEdit, QComboBox, QTabWidget, QApplication, QHeaderView, QInputDialog,
     QTextEdit, QMenu, QAbstractItemView, QDialog, QCheckBox, QDoubleSpinBox, QStackedLayout
 )
-from PyQt6.QtCore import Qt, QSize
-from PyQt6.QtGui import QIcon, QPalette, QColor, QFont
+from PySide6.QtCore import Qt, QSize
+from PySide6.QtGui import QIcon, QPalette, QColor, QFont
 
 from df_metadata_customizer.core import FileManager, SettingsManager, PresetService, RuleManager
 from df_metadata_customizer.core.metadata import MetadataFields
@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 
 
 class MainWindow(QMainWindow):
-    """Complete PyQt6 main window with ALL features."""
+    """Complete PySide6 main window with ALL features."""
 
     RULE_OPS = [
         "is", "contains", "starts with", "ends with",
@@ -466,9 +466,13 @@ class MainWindow(QMainWindow):
                     value = Path(value).name
                 # Truncate long values
                 value_str = str(value)
-                if len(value_str) > 60:
+                is_truncated = len(value_str) > 60
+                if is_truncated:
                     value_str = value_str[:57] + "..."
                 item.setText(col_idx, value_str)
+                # Add tooltip if text was truncated or if it's the path column
+                if is_truncated or key == "path":
+                    item.setToolTip(col_idx, str(value))
                 item.setTextAlignment(col_idx, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
             
             item.setData(0, Qt.ItemDataRole.UserRole, idx)
@@ -887,7 +891,7 @@ By Artist:
             "MP3 Metadata Customizer\n\n"
             "✓ REST API\n"
             "✓ CLI Commands\n"
-            "✓ PyQt6 GUI")
+            "✓ PySide6 GUI")
     
     def show_preferences(self):
         """Show preferences dialog."""

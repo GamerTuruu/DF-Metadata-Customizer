@@ -1,7 +1,7 @@
 """Multi-level sort controls component."""
 
 from typing import List, Dict, Any, Callable
-from PyQt6.QtWidgets import (
+from PySide6.QtWidgets import (
     QFrame, QHBoxLayout, QPushButton, QLabel, QMessageBox
 )
 from df_metadata_customizer.ui.rule_widgets import NoScrollComboBox

@@ -1,6 +1,6 @@
 """Status bar component for displaying file and selection information."""
 
-from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton
+from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton
 from df_metadata_customizer.ui.styles import LABEL_SECONDARY, BUTTON_PRIMARY_STYLESHEET
 
 

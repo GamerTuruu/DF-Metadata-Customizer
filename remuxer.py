@@ -1,4 +1,3 @@
-import ffmpeg
 import os
 from pathlib import Path
 import subprocess

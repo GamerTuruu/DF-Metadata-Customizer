@@ -1,6 +1,6 @@
 """Song controls component with folder selection and search."""
 
-from PyQt6.QtWidgets import QFrame, QHBoxLayout, QPushButton, QLineEdit, QLabel
+from PySide6.QtWidgets import QFrame, QHBoxLayout, QPushButton, QLineEdit, QLabel
 from df_metadata_customizer.ui.styles import BUTTON_PRIMARY_STYLESHEET, LINEEDIT_STYLESHEET
 
 

@@ -1,11 +1,11 @@
 """Rules panel UI and rule builder logic."""
 
 import logging
-from PyQt6.QtWidgets import (
+from PySide6.QtWidgets import (
     QFrame, QWidget, QVBoxLayout, QHBoxLayout, QScrollArea, QPushButton,
     QLabel, QTextEdit, QLineEdit, QTabWidget, QApplication
 )
-from PyQt6.QtCore import Qt
+from PySide6.QtCore import Qt
 
 from df_metadata_customizer.core import SettingsManager
 from df_metadata_customizer.ui.rule_widgets import RuleRow
@@ -438,7 +438,7 @@ class RulesPanelManager:
                         if isinstance(layout.itemAt(i).widget(), RuleRow))
 
         if rule_count >= self.parent.max_rules_per_tab:
-            from PyQt6.QtWidgets import QMessageBox
+            from PySide6.QtWidgets import QMessageBox
             QMessageBox.information(self.parent, "Rule Limit",
                 f"Maximum of {self.parent.max_rules_per_tab} rules reached for {tab_name.title()}")
             return

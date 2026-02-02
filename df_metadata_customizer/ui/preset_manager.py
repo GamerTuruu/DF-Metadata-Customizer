@@ -4,10 +4,10 @@ import json
 import logging
 from pathlib import Path
 from typing import Callable
-from PyQt6.QtWidgets import (
+from PySide6.QtWidgets import (
     QFrame, QHBoxLayout, QLabel, QPushButton, QMessageBox, QInputDialog
 )
-from PyQt6.QtCore import Qt
+from PySide6.QtCore import Qt
 
 from df_metadata_customizer.core import SettingsManager, PresetService
 from df_metadata_customizer.core.preset_service import Preset

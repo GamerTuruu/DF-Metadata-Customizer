@@ -8,7 +8,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from PyQt6.QtWidgets import (
+from PySide6.QtWidgets import (
     QFrame,
     QVBoxLayout,
     QHBoxLayout,
@@ -26,8 +26,8 @@ from PyQt6.QtWidgets import (
     QScrollArea,
     QMenu,
 )
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QPixmap, QFontMetrics, QCursor
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QPixmap, QFontMetrics, QCursor
 
 from mutagen.id3 import ID3, ID3NoHeaderError, TIT2, TPE1, TALB, TRCK, TPOS, TDRC, TPE2, APIC, COMM
 
@@ -94,6 +94,11 @@ class SongEditorManager:
             }
             QLineEdit:focus { border: 2px solid #0d47a1; }
         """)
+
+    def _set_field_tooltip(self, widget, full_text: str) -> None:
+        """Set tooltip on a widget to show full text if it exists."""
+        if full_text and hasattr(widget, 'setToolTip'):
+            widget.setToolTip(str(full_text))
 
     def _validate_numeric_field(self, field: QLineEdit) -> None:
         """Validate that field contains only numbers and decimal point."""
@@ -288,6 +293,7 @@ class SongEditorManager:
         pending_layout.addWidget(pending_label)
 
         self.pending_tree = QTreeWidget()
+        self.pending_tree.setMouseTracking(True)
         self.pending_tree.setColumnCount(6)
         self.pending_tree.setHeaderLabels(["Source File", "Filename", "Title", "Artist", "Track", "Date"])
         self.pending_tree.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
@@ -703,6 +709,7 @@ class SongEditorManager:
                 if isinstance(field, QLabel):
                     xxhash_val = jsond.get("xxHash", "-")
                     field.setText(str(xxhash_val) if xxhash_val else "-")
+                    self._set_field_tooltip(field, str(xxhash_val) if xxhash_val else "-")
             else:
                 if hasattr(field, 'setText'):
                     value = jsond.get(key, "")
@@ -714,6 +721,7 @@ class SongEditorManager:
                     elif key == MetadataFields.COMMENT and not value:
                         value = "None"
                     field.setText(str(value))
+                    self._set_field_tooltip(field, str(value))
         # Sync comment to ID3 display
         self._sync_comment_to_id3(jsond.get(MetadataFields.COMMENT, ""))
         # Update ID3 display fields (Disc, Track, Date) from JSON
@@ -734,6 +742,7 @@ class SongEditorManager:
                     if hasattr(json_field, 'text'):
                         disc_val = json_field.text().strip()
                 field.setText(str(disc_val) if disc_val else "-")
+                self._set_field_tooltip(field, str(disc_val) if disc_val else "-")
         
         if "Track" in self.id3_fields:
             field = self.id3_fields["Track"]
@@ -744,21 +753,26 @@ class SongEditorManager:
                     if hasattr(json_field, 'text'):
                         track_val = json_field.text().strip()
                 field.setText(str(track_val) if track_val else "-")
+                self._set_field_tooltip(field, str(track_val) if track_val else "-")
         
         if "Date" in self.id3_fields:
             field = self.id3_fields["Date"]
             if isinstance(field, QLabel):
                 date_val = ""
+                full_date_val = ""
                 if MetadataFields.DATE in self.json_fields:
                     json_field = self.json_fields[MetadataFields.DATE]
                     if hasattr(json_field, 'text'):
                         full_date = json_field.text().strip()
+                        full_date_val = full_date
                         # Extract just the year from yyyy-mm-dd format
                         if full_date and len(full_date) >= 4:
                             date_val = full_date[:4]
                         else:
                             date_val = full_date
                 field.setText(str(date_val) if date_val else "-")
+                # Show the full date in tooltip
+                self._set_field_tooltip(field, full_date_val if full_date_val else "-")
 
     def _update_id3_from_json(self) -> None:
         """Update ID3 display fields and previews when JSON fields change."""
@@ -776,7 +790,9 @@ class SongEditorManager:
             if isinstance(field, QLabel):
                 # Skip label fields
                 continue
-            field.setText(str(id3.get(key, "")))
+            value = str(id3.get(key, ""))
+            field.setText(value)
+            self._set_field_tooltip(field, value)
 
     def _update_filename_display(self, jsond: dict) -> None:
         """Update the filename display based on JSON data."""
@@ -785,6 +801,7 @@ class SongEditorManager:
             if isinstance(filename_field, QLabel):
                 filename = self._generate_filename(jsond)
                 filename_field.setText(filename)
+                self._set_field_tooltip(filename_field, filename)
         # Update COMM:eng preview
         self._update_comm_eng_preview(jsond)
 
@@ -806,6 +823,7 @@ class SongEditorManager:
             comm_text = f"{date_str} //{comment_text}"
         
         field.setText(comm_text)
+        self._set_field_tooltip(field, comm_text)
 
     def _apply_cover_preview(self, cover_bytes: bytes | None) -> None:
         if not self.cover_label:

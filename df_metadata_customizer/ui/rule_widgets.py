@@ -1,10 +1,10 @@
-"""Rule Builder Widgets for PyQt6."""
+"""Rule Builder Widgets for PySide6."""
 
-from PyQt6.QtWidgets import (
+from PySide6.QtWidgets import (
     QWidget, QHBoxLayout, QVBoxLayout, QLabel, QComboBox, 
     QLineEdit, QPushButton, QFrame
 )
-from PyQt6.QtCore import Qt, pyqtSignal, QEvent
+from PySide6.QtCore import Qt, Signal, QEvent
 from df_metadata_customizer.core.metadata import MetadataFields
 
 
@@ -19,10 +19,10 @@ class NoScrollComboBox(QComboBox):
 class RuleRow(QFrame):
     """A single rule row with IF-THEN logic."""
     
-    rule_changed = pyqtSignal()
-    delete_requested = pyqtSignal(object)
-    move_up_requested = pyqtSignal(object)
-    move_down_requested = pyqtSignal(object)
+    rule_changed = Signal()
+    delete_requested = Signal(object)
+    move_up_requested = Signal(object)
+    move_down_requested = Signal(object)
     
     def __init__(self, operators: list, parent=None):
         super().__init__(parent)
