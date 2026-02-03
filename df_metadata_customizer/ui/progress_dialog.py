@@ -10,9 +10,11 @@ class ProgressDialog(QDialog):
     """Dialog showing progress of long operations."""
     
     def __init__(self, title: str = "Processing", parent=None):
-        super().__init__(parent)
+        super().__init__()
         self.setWindowTitle(title)
-        self.setModal(True)
+        # Wayland-compatible: Use Dialog flag for proper window management
+        self.setWindowFlags(Qt.Dialog)
+        self.setModal(False)
         self.setMinimumWidth(400)
         self.cancelled = False
         

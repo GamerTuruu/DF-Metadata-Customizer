@@ -42,6 +42,7 @@ A powerful metadata management tool designed specifically for Neuro-sama and Evi
 - 📝 **JSON Editor** - Edit JSON metadata directly in the app with validation
 - ✏️ **File Renaming** - Rename MP3 files directly from the interface
 - 🔍 **Enhanced Search** - Version=latest filter and improved search operators
+- 🖱️ **Click-Outside Dismiss** - Close popup dialogs by clicking outside them (Wayland/X11 compatible)
 
 ## Installation
 

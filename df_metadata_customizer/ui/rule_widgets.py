@@ -6,6 +6,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, Signal, QEvent
 from df_metadata_customizer.core.metadata import MetadataFields
+from df_metadata_customizer.core.settings_manager import SettingsManager
 
 
 class NoScrollComboBox(QComboBox):
@@ -27,13 +28,7 @@ class RuleRow(QFrame):
     def __init__(self, operators: list, parent=None):
         super().__init__(parent)
         
-        self.setStyleSheet("""
-            QFrame {
-                background-color: #2d2d2d;
-                border-radius: 4px;
-                padding: 4px;
-            }
-        """)
+        self.setStyleSheet("QFrame { background-color: transparent; }")
         
         layout = QHBoxLayout(self)
         layout.setContentsMargins(6, 6, 6, 6)
@@ -117,6 +112,11 @@ class RuleRow(QFrame):
         
         # Store is_first flag (not shown in UI, but preserved from presets)
         self.is_first = False
+
+        # Apply current theme if available
+        parent = self.parent()
+        if parent is not None and hasattr(parent, "theme_colors") and parent.theme_colors:
+            self.update_theme(parent.theme_colors, SettingsManager.theme == "dark")
     
     def get_logic(self):
         """Get AND/OR logic."""
@@ -169,3 +169,54 @@ class RuleRow(QFrame):
             # Unblock signals and emit update
             for widget in widgets:
                 widget.blockSignals(False)
+    
+    def update_theme(self, theme_colors: dict, is_dark: bool):
+        """Update rule row styling with current theme."""
+        c = theme_colors
+        # Use a subtle background that matches the active theme
+        row_bg = c['bg_secondary'] if is_dark else c['bg_primary']
+        dropdown_bg = '#2d2d2d' if is_dark else '#ffffff'
+        self.setStyleSheet(f"""
+            QFrame {{
+                background-color: {row_bg};
+                border: 1px solid {c['border']};
+                border-radius: 4px;
+                padding: 4px;
+            }}
+            QComboBox {{
+                background-color: {c['bg_primary']};
+                color: {c['text']};
+                border: 1px solid {c['border']};
+                border-radius: 3px;
+                padding: 4px;
+                padding-right: 18px;
+            }}
+            QComboBox::drop-down {{
+                border: none;
+                width: 18px;
+                background-color: transparent;
+            }}
+            QComboBox QAbstractItemView {{
+                background-color: {dropdown_bg};
+                color: {c['text']};
+                selection-background-color: {c['button']};
+                selection-color: #ffffff;
+            }}
+            QLineEdit {{
+                background-color: {c['bg_primary']};
+                color: {c['text']};
+                border: 1px solid {c['border']};
+                border-radius: 3px;
+                padding: 4px;
+            }}
+            QPushButton {{
+                background-color: {c['bg_secondary']};
+                color: {c['text']};
+                border: 1px solid {c['border']};
+                border-radius: 3px;
+                padding: 4px;
+            }}
+            QPushButton:hover {{
+                background-color: {c['button']};
+            }}
+        """)

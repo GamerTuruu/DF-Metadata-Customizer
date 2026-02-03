@@ -51,7 +51,8 @@ class WindowManager:
     
     def show_preferences(self):
         """Show preferences dialog."""
-        dialog = QDialog(self.window)
+        dialog = QDialog()
+        dialog.setWindowFlags(Qt.Dialog)
         dialog.setWindowTitle("Preferences")
         dialog.setMinimumWidth(500)
         dialog.setStyleSheet("""

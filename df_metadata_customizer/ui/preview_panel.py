@@ -8,6 +8,7 @@ from PySide6.QtCore import Qt
 
 from df_metadata_customizer.core.metadata import MetadataFields
 from df_metadata_customizer.core.song_utils import get_id3_tags
+from df_metadata_customizer.core.settings_manager import SettingsManager
 
 
 class PreviewPanelManager:
@@ -166,19 +167,26 @@ class PreviewPanelManager:
             except Exception:
                 return str(val)
 
-        preview_box_style = """
-            QLabel {
-                background-color: #1f1f1f;
-                border: 1px solid #3d3d3d;
+        c = getattr(self.parent, "theme_colors", None) or {}
+        is_dark = SettingsManager.theme == "dark"
+        preview_bg = "#2d2d30" if is_dark else "#f3f3f3"
+        preview_border = "#454545" if is_dark else "#d4d4d4"
+        base_text = c.get("text", "#cccccc" if is_dark else "#3b3b3b")
+        dim_text = "#666666" if is_dark else "#777777"
+
+        preview_box_style = f"""
+            QLabel {{
+                background-color: {preview_bg};
+                border: 1px solid {preview_border};
                 border-radius: 4px;
                 padding: 4px 6px;
                 min-height: 20px;
-            }
+            }}
         """
 
-        title_color = "#ffffff" if rule_applied.get(MetadataFields.TITLE, False) else "#666666"
-        artist_color = "#ffffff" if rule_applied.get(MetadataFields.ARTIST, False) else "#666666"
-        album_color = "#ffffff" if rule_applied.get("Album", False) else "#666666"
+        title_color = base_text if rule_applied.get(MetadataFields.TITLE, False) else dim_text
+        artist_color = base_text if rule_applied.get(MetadataFields.ARTIST, False) else dim_text
+        album_color = base_text if rule_applied.get("Album", False) else dim_text
 
         title_style = "font-style: italic;" if not rule_applied.get(MetadataFields.TITLE, False) else ""
         artist_style = "font-style: italic;" if not rule_applied.get(MetadataFields.ARTIST, False) else ""
@@ -222,3 +230,45 @@ class PreviewPanelManager:
 
         self.parent.cover_manager.load_cover_image(file_data)
         self.parent.update_selection_info()
+    
+    def update_theme(self, theme_colors: dict, is_dark: bool):
+        """Update preview labels with current theme colors."""
+        c = theme_colors
+        
+        # Create preview box style based on theme colors
+        preview_bg = '#2d2d30' if is_dark else '#f3f3f3'
+        preview_border = '#454545' if is_dark else '#d4d4d4'
+        preview_text = '#cccccc' if is_dark else '#3b3b3b'
+        
+        preview_box_style = f"""
+            QLabel {{
+                background-color: {preview_bg};
+                border: 1px solid {preview_border};
+                border-radius: 4px;
+                padding: 4px 6px;
+                min-height: 20px;
+                color: {preview_text};
+            }}
+        """
+        
+        # Update all preview labels
+        for label_name in ['preview_title_label', 'preview_artist_label', 'preview_album_label', 
+                          'preview_disc_label', 'preview_track_label', 'preview_date_label', 
+                          'preview_version_label']:
+            if hasattr(self.parent, label_name):
+                label = getattr(self.parent, label_name)
+                if label:
+                    label.setStyleSheet(preview_box_style)
+        
+        # Update filename preview
+        if hasattr(self.parent, 'filename_preview') and self.parent.filename_preview:
+            self.parent.filename_preview.setStyleSheet(f"""
+                QLineEdit {{
+                    background-color: {c['bg_primary']};
+                    color: {c['text']};
+                    border: 1px solid {c['border']};
+                    border-radius: 4px;
+                    padding: 4px 8px;
+                }}
+                QLineEdit:focus {{ border: 2px solid {c['button']}; }}
+            """)

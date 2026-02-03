@@ -13,7 +13,7 @@ from PySide6.QtWidgets import (
     QLineEdit, QComboBox, QTabWidget, QApplication, QHeaderView, QInputDialog,
     QTextEdit, QMenu, QAbstractItemView, QDialog, QCheckBox, QDoubleSpinBox, QStackedLayout
 )
-from PySide6.QtCore import Qt, QSize
+from PySide6.QtCore import Qt, QSize, QTimer, QByteArray
 from PySide6.QtGui import QIcon, QPalette, QColor, QFont
 
 from df_metadata_customizer.core import FileManager, SettingsManager, PresetService, RuleManager
@@ -28,6 +28,8 @@ from df_metadata_customizer.ui.tree_view import TreeViewManager
 from df_metadata_customizer.ui.preset_manager import PresetManager
 from df_metadata_customizer.ui.rules_panel import RulesPanelManager
 from df_metadata_customizer.ui.song_editor import SongEditorManager
+from df_metadata_customizer.ui import custom_dialogs
+
 from df_metadata_customizer.ui.cover_manager import CoverManager
 from df_metadata_customizer.ui.preview_panel import PreviewPanelManager
 from df_metadata_customizer.ui.search_handler import SearchHandler
@@ -53,8 +55,8 @@ class MainWindow(QMainWindow):
         MetadataFields.DATE,
         MetadataFields.DISC,
         MetadataFields.TRACK,
-        MetadataFields.FILE,
         MetadataFields.SPECIAL,
+        MetadataFields.FILE,
     ]
 
     def __init__(self):
@@ -76,6 +78,18 @@ class MainWindow(QMainWindow):
         self.sort_rules: List[tuple] = [("Title", True)]
         self.current_selected_file = None
         self.all_selected = False
+        
+        # Theme-aware colors (updated in _apply_theme) - VS Code Modern themes
+        self.theme_colors = {
+            'bg_primary': '#1e1e1e',      # VS Code Dark Modern: editor background
+            'bg_secondary': '#252526',     # VS Code Dark Modern: sidebar
+            'bg_tertiary': '#2d2d30',      # VS Code Dark Modern: darker elements
+            'border': '#454545',           # VS Code Dark Modern: borders
+            'text': '#cccccc',             # VS Code Dark Modern: text
+            'text_secondary': '#858585',   # VS Code Dark Modern: dimmed text
+            'button': '#0e639c',           # VS Code Dark Modern: button
+            'selection': '#264f78',        # VS Code Dark Modern: selection
+        }
 
         self.tree = None
         self.search_input = None
@@ -110,6 +124,13 @@ class MainWindow(QMainWindow):
         self.rule_containers = {}
         self.max_rules_per_tab = 50
         self._last_ui_scale = 1.0
+        
+        # Debounce timer for sort operations to prevent cascading updates
+        self._sort_debounce_timer = QTimer()
+        self._sort_debounce_timer.setSingleShot(True)
+        self._sort_debounce_timer.timeout.connect(self._apply_sort)
+        self._sort_debounce_delay = 50  # milliseconds
+        self._is_sorting = False  # Flag to prevent preview updates during sort
 
         self._setup_ui()
 
@@ -137,7 +158,7 @@ class MainWindow(QMainWindow):
         self.main_splitter = QSplitter(Qt.Orientation.Horizontal)
         self.main_splitter.setChildrenCollapsible(False)
         self.main_splitter.setHandleWidth(6)
-        self.main_splitter.setStyleSheet("QSplitter::handle { background-color: #3d3d3d; }")
+        # Stylesheet will be set by _refresh_theme_colors()
 
         left_frame = self._create_left_frame()
         right_frame = self._create_right_frame()
@@ -147,11 +168,15 @@ class MainWindow(QMainWindow):
         self.main_splitter.setSizes([800, 600])
 
         layout.addWidget(self.main_splitter)
+        
+        # Apply initial theme colors to dynamic stylesheets
+        self._refresh_theme_colors()
 
     def _create_left_frame(self):
         """Create left frame with song list and controls."""
         frame = QFrame()
-        frame.setStyleSheet("QFrame { background-color: #2b2b2b; border-radius: 8px; }")
+        self.left_frame = frame  # Store reference for theme updates
+        # Stylesheet will be set by _refresh_theme_colors()
         layout = QVBoxLayout(frame)
         layout.setContentsMargins(8, 8, 8, 8)
         layout.setSpacing(6)
@@ -178,28 +203,15 @@ class MainWindow(QMainWindow):
     def _create_right_frame(self):
         """Create right frame with tabs."""
         frame = QFrame()
-        frame.setStyleSheet("QFrame { background-color: #2b2b2b; border-radius: 8px; }")
+        self.right_frame = frame  # Store reference for theme updates
+        # Stylesheet will be set by _refresh_theme_colors()
         layout = QVBoxLayout(frame)
         layout.setContentsMargins(8, 8, 8, 8)
         layout.setSpacing(0)
         
         tabs = QTabWidget()
         self.tabs = tabs
-        tabs.setStyleSheet("""
-            QTabWidget::pane { border: 1px solid #3d3d3d; }
-            QTabBar::tab {
-                background-color: #1e1e1e;
-                color: #ffffff;
-                padding: 8px 16px;
-                margin-right: 2px;
-            }
-            QTabBar::tab:selected {
-                background-color: #0d47a1;
-            }
-            QTabBar::tab:hover:!selected {
-                background-color: #3d3d3d;
-            }
-        """)
+        # Stylesheet will be set by _refresh_theme_colors()
         
         # Rules tab
         rules_widget = self._create_rules_tab()
@@ -229,74 +241,313 @@ class MainWindow(QMainWindow):
     
     def _apply_theme_from_system(self):
         """Apply theme based on user preference."""
-        theme = (SettingsManager.theme or "dark").lower()
+        # Determine theme - either from setting or from system
+        if SettingsManager.follow_system_theme or SettingsManager.theme == "system":
+            theme = self._get_system_theme()
+        else:
+            theme = (SettingsManager.theme or "dark").lower()
         self.current_theme = theme
         self._apply_theme(theme)
+    
+    def _get_system_theme(self) -> str:
+        """Detect system theme preference (dark or light)."""
+        try:
+            # Try using platform-specific methods
+            app = QApplication.instance()
+            if app:
+                # Check system palette for hint - if button is darker, likely dark theme
+                button_color = app.palette().color(QPalette.ColorRole.Button)
+                brightness = button_color.lightness()
+                # If brightness is less than 128 (middle of 0-255), consider it dark
+                return "dark" if brightness < 128 else "light"
+        except Exception:
+            pass
+        # Default to dark theme
+        return "dark"
     
     def _apply_ui_scale(self):
         """Apply UI scale from settings (handled in main(), this is for tracking)."""
         self._last_ui_scale = SettingsManager.ui_scale
     
     def _apply_theme(self, theme: str = "dark"):
-        """Apply theme."""
+        """Apply theme to application - VS Code Modern themes."""
+        app = QApplication.instance()
         if theme == "dark" or theme.lower() == "dark":
+            # VS Code Dark Modern color palette
             palette = QPalette()
-            palette.setColor(QPalette.ColorRole.Window, QColor(30, 30, 30))
-            palette.setColor(QPalette.ColorRole.WindowText, QColor(255, 255, 255))
-            palette.setColor(QPalette.ColorRole.Base, QColor(30, 30, 30))
-            palette.setColor(QPalette.ColorRole.Text, QColor(255, 255, 255))
-            palette.setColor(QPalette.ColorRole.Button, QColor(45, 45, 45))
-            palette.setColor(QPalette.ColorRole.ButtonText, QColor(255, 255, 255))
-            palette.setColor(QPalette.ColorRole.Highlight, QColor(13, 71, 161))
+            palette.setColor(QPalette.ColorRole.Window, QColor(30, 30, 30))           # #1e1e1e
+            palette.setColor(QPalette.ColorRole.WindowText, QColor(204, 204, 204))   # #cccccc
+            palette.setColor(QPalette.ColorRole.Base, QColor(30, 30, 30))            # #1e1e1e
+            palette.setColor(QPalette.ColorRole.AlternateBase, QColor(37, 37, 38))   # #252526
+            palette.setColor(QPalette.ColorRole.ToolTipBase, QColor(37, 37, 38))     # #252526
+            palette.setColor(QPalette.ColorRole.ToolTipText, QColor(204, 204, 204))  # #cccccc
+            palette.setColor(QPalette.ColorRole.Text, QColor(204, 204, 204))         # #cccccc
+            palette.setColor(QPalette.ColorRole.Button, QColor(45, 45, 48))          # #2d2d30
+            palette.setColor(QPalette.ColorRole.ButtonText, QColor(204, 204, 204))   # #cccccc
+            palette.setColor(QPalette.ColorRole.BrightText, QColor(255, 0, 0))       # Errors
+            palette.setColor(QPalette.ColorRole.Link, QColor(58, 150, 221))          # #3a96dd
+            palette.setColor(QPalette.ColorRole.Highlight, QColor(38, 79, 120))      # #264f78
             palette.setColor(QPalette.ColorRole.HighlightedText, QColor(255, 255, 255))
+            palette.setColor(QPalette.ColorRole.PlaceholderText, QColor(133, 133, 133))  # #858585
+            # Apply to application instance so all widgets inherit it
+            if app:
+                app.setPalette(palette)
             self.setPalette(palette)
-            self.setStyleSheet("")
             SettingsManager.theme = "dark"
-        else:
-            # Light theme with comprehensive styling
-            palette = QPalette()
-            palette.setColor(QPalette.ColorRole.Window, QColor(250, 250, 250))
-            palette.setColor(QPalette.ColorRole.WindowText, QColor(30, 30, 30))
-            palette.setColor(QPalette.ColorRole.Base, QColor(255, 255, 255))
-            palette.setColor(QPalette.ColorRole.AlternateBase, QColor(245, 245, 245))
-            palette.setColor(QPalette.ColorRole.Text, QColor(30, 30, 30))
-            palette.setColor(QPalette.ColorRole.Button, QColor(240, 240, 240))
-            palette.setColor(QPalette.ColorRole.ButtonText, QColor(30, 30, 30))
-            palette.setColor(QPalette.ColorRole.Highlight, QColor(13, 71, 161))
-            palette.setColor(QPalette.ColorRole.HighlightedText, QColor(255, 255, 255))
-            palette.setColor(QPalette.ColorRole.Link, QColor(13, 71, 161))
-            palette.setColor(QPalette.ColorRole.LinkVisited, QColor(106, 17, 203))
-            palette.setColor(QPalette.ColorRole.PlaceholderText, QColor(150, 150, 150))
-            self.setPalette(palette)
-            # Comprehensive stylesheet for light theme
+            # VS Code Dark Modern comprehensive stylesheet
             self.setStyleSheet("""
-                QMainWindow, QDialog { background-color: #fafafa; }
-                QFrame { background-color: #fafafa; border: none; }
-                QLabel { color: #1e1e1e; background-color: transparent; }
-                QLineEdit { background-color: #ffffff; color: #1e1e1e; border: 1px solid #d0d0d0; padding: 4px; border-radius: 3px; }
-                QComboBox { background-color: #f0f0f0; color: #1e1e1e; border: 1px solid #d0d0d0; padding: 4px; border-radius: 3px; }
+                QMainWindow, QDialog { background-color: #1e1e1e; color: #cccccc; }
+                QFrame { border: none; }
+                QLabel { color: #cccccc; background-color: transparent; }
+                QToolTip { background-color: #252526; color: #cccccc; border: 1px solid #454545; }
                 QComboBox::drop-down { border: none; }
-                QComboBox QAbstractItemView { background-color: #ffffff; color: #1e1e1e; selection-background-color: #0d47a1; }
-                QPushButton { background-color: #f0f0f0; color: #1e1e1e; border: 1px solid #d0d0d0; padding: 6px; border-radius: 3px; }
-                QPushButton:hover { background-color: #e0e0e0; }
-                QPushButton:pressed { background-color: #d0d0d0; }
-                QTreeWidget { background-color: #ffffff; color: #1e1e1e; border: 1px solid #d0d0d0; }
-                QTreeWidget::item:selected { background-color: #0d47a1; color: #ffffff; }
-                QTreeWidget::item:hover { background-color: #e8e8e8; }
-                QTextEdit, QPlainTextEdit { background-color: #ffffff; color: #1e1e1e; border: 1px solid #d0d0d0; }
-                QCheckBox { color: #1e1e1e; }
-                QRadioButton { color: #1e1e1e; }
-                QGroupBox { color: #1e1e1e; border: 1px solid #d0d0d0; border-radius: 4px; margin-top: 10px; padding-top: 10px; }
-                QGroupBox::title { subcontrol-origin: margin; subcontrol-position: top left; padding: 0 3px; }
-                QMenuBar { background-color: #f0f0f0; color: #1e1e1e; }
-                QMenuBar::item:selected { background-color: #0d47a1; color: #ffffff; }
-                QMenu { background-color: #ffffff; color: #1e1e1e; border: 1px solid #d0d0d0; }
-                QMenu::item:selected { background-color: #0d47a1; color: #ffffff; }
-                QTabWidget::pane { border: 1px solid #d0d0d0; background-color: #fafafa; }
-                QTabBar::tab { background-color: #e0e0e0; color: #1e1e1e; padding: 8px; border: 1px solid #d0d0d0; }
-                QTabBar::tab:selected { background-color: #fafafa; border-bottom: none; }
             """)
+            # Update theme colors - VS Code Dark Modern
+            self.theme_colors = {
+                'bg_primary': '#1e1e1e',      # Editor background
+                'bg_secondary': '#252526',     # Sidebar background
+                'bg_tertiary': '#2d2d30',      # Input backgrounds
+                'border': '#454545',           # Borders
+                'text': '#cccccc',             # Normal text
+                'text_secondary': '#858585',   # Dimmed text
+                'button': '#0e639c',           # Button background
+                'selection': '#264f78',        # Selection background
+            }
+            self._refresh_theme_colors()
+        else:
+            # VS Code Light Modern color palette
+            palette = QPalette()
+            palette.setColor(QPalette.ColorRole.Window, QColor(255, 255, 255))        # #ffffff
+            palette.setColor(QPalette.ColorRole.WindowText, QColor(59, 59, 59))       # #3b3b3b
+            palette.setColor(QPalette.ColorRole.Base, QColor(255, 255, 255))          # #ffffff
+            palette.setColor(QPalette.ColorRole.AlternateBase, QColor(243, 243, 243)) # #f3f3f3
+            palette.setColor(QPalette.ColorRole.ToolTipBase, QColor(243, 243, 243))   # #f3f3f3
+            palette.setColor(QPalette.ColorRole.ToolTipText, QColor(59, 59, 59))      # #3b3b3b
+            palette.setColor(QPalette.ColorRole.Text, QColor(59, 59, 59))             # #3b3b3b
+            palette.setColor(QPalette.ColorRole.Button, QColor(243, 243, 243))        # #f3f3f3
+            palette.setColor(QPalette.ColorRole.ButtonText, QColor(59, 59, 59))       # #3b3b3b
+            palette.setColor(QPalette.ColorRole.Highlight, QColor(0, 122, 204))       # #007acc
+            palette.setColor(QPalette.ColorRole.HighlightedText, QColor(255, 255, 255))
+            palette.setColor(QPalette.ColorRole.Link, QColor(0, 122, 204))            # #007acc
+            palette.setColor(QPalette.ColorRole.LinkVisited, QColor(135, 107, 196))   # #876bc4
+            palette.setColor(QPalette.ColorRole.PlaceholderText, QColor(150, 150, 150))
+            # Apply to application instance so all widgets inherit it
+            if app:
+                app.setPalette(palette)
+            self.setPalette(palette)
             SettingsManager.theme = "light"
+            # Update theme colors - VS Code Light Modern
+            self.theme_colors = {
+                'bg_primary': '#ffffff',       # Editor background
+                'bg_secondary': '#f3f3f3',     # Sidebar background
+                'bg_tertiary': '#f8f8f8',      # Input backgrounds
+                'border': '#e5e5e5',           # Borders
+                'text': '#3b3b3b',             # Normal text
+                'text_secondary': '#717171',   # Dimmed text
+                'button': '#007acc',           # Button background
+                'selection': '#add6ff',        # Selection background
+            }
+            self._refresh_theme_colors()
+            # VS Code Light Modern comprehensive stylesheet
+            self.setStyleSheet("""
+                QMainWindow, QDialog { background-color: #ffffff; }
+                QFrame { background-color: #ffffff; border: none; }
+                QLabel { color: #3b3b3b; background-color: transparent; }
+                QLineEdit { background-color: #ffffff; color: #3b3b3b; border: 1px solid #e5e5e5; padding: 4px; border-radius: 3px; }
+                QComboBox { background-color: #f3f3f3; color: #3b3b3b; border: 1px solid #e5e5e5; padding: 4px; border-radius: 3px; }
+                QComboBox::drop-down { border: none; }
+                QComboBox QAbstractItemView { background-color: #ffffff; color: #3b3b3b; selection-background-color: #007acc; selection-color: #ffffff; }
+                QPushButton { background-color: #f3f3f3; color: #3b3b3b; border: 1px solid #e5e5e5; padding: 6px; border-radius: 3px; }
+                QPushButton:hover { background-color: #e8e8e8; }
+                QPushButton:pressed { background-color: #d8d8d8; }
+                QTreeWidget { background-color: #ffffff; color: #3b3b3b; border: 1px solid #e5e5e5; }
+                QTreeWidget::item:selected { background-color: #007acc; color: #ffffff; }
+                QTreeWidget::item:hover { background-color: #f0f0f0; }
+                QTextEdit, QPlainTextEdit { background-color: #ffffff; color: #3b3b3b; border: 1px solid #e5e5e5; }
+                QCheckBox { color: #3b3b3b; }
+                QRadioButton { color: #3b3b3b; }
+                QGroupBox { color: #3b3b3b; border: 1px solid #e5e5e5; border-radius: 4px; margin-top: 10px; padding-top: 10px; }
+                QGroupBox::title { subcontrol-origin: margin; subcontrol-position: top left; padding: 0 3px; }
+                QMenuBar { background-color: #f3f3f3; color: #3b3b3b; }
+                QMenuBar::item:selected { background-color: #007acc; color: #ffffff; }
+                QMenu { background-color: #ffffff; color: #3b3b3b; border: 1px solid #e5e5e5; }
+                QMenu::item:selected { background-color: #007acc; color: #ffffff; }
+                QTabWidget::pane { border: 1px solid #e5e5e5; background-color: #ffffff; }
+                QTabBar::tab { background-color: #e8e8e8; color: #3b3b3b; padding: 8px; border: 1px solid #e5e5e5; }
+                QTabBar::tab:selected { background-color: #ffffff; border-bottom: none; }
+            """)
+    
+    def _refresh_theme_colors(self):
+        """Refresh all hardcoded stylesheets with current theme colors."""
+        c = self.theme_colors
+        is_dark = SettingsManager.theme == "dark"
+        
+        # Update splitter
+        if hasattr(self, 'main_splitter'):
+            self.main_splitter.setStyleSheet(f"QSplitter::handle {{ background-color: {c['border']}; }}")
+        
+        # Update left and right frames
+        frame_style = f"QFrame {{ background-color: {c['bg_secondary']}; border-radius: 8px; }}"
+        if hasattr(self, 'left_frame'):
+            self.left_frame.setStyleSheet(frame_style)
+        if hasattr(self, 'right_frame'):
+            self.right_frame.setStyleSheet(frame_style)
+        
+        # Update search input
+        if hasattr(self, 'search_input') and self.search_input:
+            self.search_input.setStyleSheet(f"""
+                QLineEdit {{
+                    background-color: {c['bg_primary']};
+                    color: {c['text']};
+                    border: 1px solid {c['border']};
+                    border-radius: 4px;
+                    padding: 4px 8px;
+                }}
+                QLineEdit:focus {{ border: 2px solid {c['button']}; }}
+            """)
+        
+        # Update song control buttons
+        button_hover = '#094771' if is_dark else '#33a3dc'
+        button_pressed = '#0a3270' if is_dark else '#2789b3'
+        
+        button_style = f"""
+            QPushButton {{
+                background-color: {c['button']};
+                color: white;
+                border: none;
+                border-radius: 4px;
+                font-weight: bold;
+                padding: 6px 12px;
+            }}
+            QPushButton:hover {{ background-color: {button_hover}; }}
+            QPushButton:pressed {{ background-color: {button_pressed}; }}
+        """
+        
+        for btn_name in ['folder_btn', 'refresh_btn', 'select_all_btn']:
+            if hasattr(self, btn_name) and getattr(self, btn_name):
+                getattr(self, btn_name).setStyleSheet(button_style)
+        
+        # Update filtered count label
+        if hasattr(self, 'filtered_count_label') and self.filtered_count_label:
+            label_color = '#bbb' if is_dark else '#777'
+            self.filtered_count_label.setStyleSheet(f"color: {label_color}; font-size: 11px;")
+        
+        # Update menubar
+        if hasattr(self, 'menuBar'):
+            menubar = self.menuBar()
+            if menubar:
+                if is_dark:
+                    menubar.setStyleSheet(f"""
+                        QMenuBar {{
+                            background-color: {c['bg_primary']};
+                            color: {c['text']};
+                            border-bottom: 1px solid {c['border']};
+                        }}
+                        QMenuBar::item:selected {{ background-color: {c['bg_tertiary']}; }}
+                        QMenu {{
+                            background-color: {c['bg_primary']};
+                            color: {c['text']};
+                            border: 1px solid {c['border']};
+                        }}
+                        QMenu::item:selected {{ background-color: {c['button']}; color: #ffffff; }}
+                    """)
+                else:
+                    menubar.setStyleSheet(f"""
+                        QMenuBar {{
+                            background-color: {c['bg_secondary']};
+                            color: {c['text']};
+                            border-bottom: 1px solid {c['border']};
+                        }}
+                        QMenuBar::item:selected {{ background-color: {c['button']}; color: #ffffff; }}
+                        QMenu {{
+                            background-color: {c['bg_primary']};
+                            color: {c['text']};
+                            border: 1px solid {c['border']};
+                        }}
+                        QMenu::item:selected {{ background-color: {c['button']}; color: #ffffff; }}
+                    """)
+        
+        # Update tabs
+        if hasattr(self, 'tabs'):
+            if is_dark:
+                tab_style = f"""
+                    QTabWidget::pane {{ border: 1px solid {c['border']}; }}
+                    QTabBar::tab {{
+                        background-color: {c['bg_primary']};
+                        color: {c['text']};
+                        padding: 8px 16px;
+                        margin-right: 2px;
+                    }}
+                    QTabBar::tab:selected {{
+                        background-color: {c['button']};
+                        color: #ffffff;
+                    }}
+                    QTabBar::tab:hover:!selected {{
+                        background-color: {c['border']};
+                    }}
+                """
+            else:
+                tab_style = f"""
+                    QTabWidget::pane {{ border: 1px solid {c['border']}; background-color: {c['bg_secondary']}; }}
+                    QTabBar::tab {{
+                        background-color: {c['bg_tertiary']};
+                        color: {c['text']};
+                        padding: 8px 16px;
+                        margin-right: 2px;
+                        border: 1px solid {c['border']};
+                    }}
+                    QTabBar::tab {{
+                        background-color: #e8e8e8;
+                        color: {c['text']};
+                        padding: 8px 16px;
+                        margin-right: 2px;
+                        border: 1px solid {c['border']};
+                    }}
+                    QTabBar::tab:selected {{
+                        background-color: {c['button']};
+                        color: #ffffff;
+                        border-bottom: 1px solid {c['button']};
+                    }}
+                    QTabBar::tab:hover:!selected {{
+                        background-color: #dcdcdc;
+                    }}
+                """
+            self.tabs.setStyleSheet(tab_style)
+        
+        # Update tree view
+        if hasattr(self, 'tree_view_manager') and self.tree_view_manager:
+            self.tree_view_manager.update_tree_stylesheet(c)
+        
+        # Update preset combo
+        if hasattr(self, 'preset_manager') and self.preset_manager:
+            self.preset_manager.update_preset_stylesheet(c)
+        
+        # Update cover container
+        if hasattr(self, 'cover_container') and self.cover_container:
+            cover_style = f"""
+                QFrame {{
+                    background-color: {c['bg_primary']};
+                    border: 1px solid {c['border']};
+                    border-radius: 4px;
+                }}
+            """
+            self.cover_container.setStyleSheet(cover_style)
+        
+        # Update song editor components
+        if hasattr(self, 'song_editor_manager') and self.song_editor_manager:
+            self.song_editor_manager.update_theme(c, is_dark)
+        
+        # Update sort controls
+        if hasattr(self, 'sort_controls_manager') and self.sort_controls_manager:
+            self.sort_controls_manager.update_theme(c, is_dark)
+        
+        # Update rules panel
+        if hasattr(self, 'rules_panel_manager') and self.rules_panel_manager:
+            self.rules_panel_manager.update_theme(c, is_dark)
+        
+        # Update preview panel
+        if hasattr(self, 'preview_panel_manager') and self.preview_panel_manager:
+            self.preview_panel_manager.update_theme(c, is_dark)
     
     def keyPressEvent(self, event):
         """Handle keyboard shortcuts."""
@@ -326,7 +577,7 @@ class MainWindow(QMainWindow):
         if self.current_folder:
             self.load_folder(self.current_folder, show_dialogs=show_dialogs)
         else:
-            QMessageBox.information(self, "No Folder", "No folder is currently loaded. Please select a folder first.")
+            custom_dialogs.information(self, "No Folder", "No folder is currently loaded. Please select a folder first.")
     
     def load_folder(self, folder_path: str, show_dialogs=True):
         """Load files from folder.
@@ -358,7 +609,7 @@ class MainWindow(QMainWindow):
             
             # Show result only if requested
             if show_dialogs:
-                QMessageBox.information(
+                custom_dialogs.information(
                     self, 
                     "Load Complete",
                     f"Successfully loaded {len(self.song_files)} files from:\n{folder_path}"
@@ -369,7 +620,7 @@ class MainWindow(QMainWindow):
                 self.search_input.clear()
             
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to load folder:\n{e}")
+            custom_dialogs.critical(self, "Error", f"Failed to load folder:\n{e}")
             logger.exception("Error loading folder")
     
     def check_last_folder(self):
@@ -398,7 +649,8 @@ class MainWindow(QMainWindow):
                 self.load_folder(last_folder, show_dialogs=True)
             # If disabled, ask each time
             elif auto_reopen is False:
-                msg_box = QMessageBox(self)
+                msg_box = QMessageBox()
+                msg_box.setWindowFlags(Qt.Dialog)
                 msg_box.setIcon(QMessageBox.Icon.Question)
                 msg_box.setWindowTitle("Open Last Folder")
                 msg_box.setText(f"Do you want to open the last folder?\n\n{last_folder}")
@@ -421,8 +673,26 @@ class MainWindow(QMainWindow):
         except Exception as e:
             logger.debug(f"Error loading last folder: {e}")
     
-    def populate_tree(self):
-        """Populate tree with songs."""
+    def populate_tree(self, preserve_selection=False):
+        """Populate tree with songs.
+        
+        Args:
+            preserve_selection: If True, preserve previously selected items by their data indices
+        """
+        # Set flag to prevent cascading preview updates during tree rebuild
+        self._is_sorting = True
+        
+        # Block signals to prevent cascading updates during tree rebuild
+        self.tree.blockSignals(True)
+        
+        # Save selection before clearing
+        selected_indices = set()
+        if preserve_selection:
+            for item in self.tree.selectedItems():
+                idx = item.data(0, Qt.ItemDataRole.UserRole)
+                if idx is not None:
+                    selected_indices.add(idx)
+        
         self.tree.clear()
         
         # Map tree columns to actual file data keys
@@ -434,11 +704,11 @@ class MainWindow(QMainWindow):
             4: "Date",            # Date
             5: "Discnumber",      # Disc
             6: "Track",           # Track
-            7: "path",            # File
-            8: "Special",         # Special
+            7: "Special",         # Special
+            8: "path",            # Filename
         }
         
-        for idx in self.filtered_indices:
+        for tree_row, idx in enumerate(self.filtered_indices):
             if idx >= len(self.song_files):
                 continue
             
@@ -476,8 +746,19 @@ class MainWindow(QMainWindow):
                 item.setTextAlignment(col_idx, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
             
             item.setData(0, Qt.ItemDataRole.UserRole, idx)
+            
+            # Restore selection for items that were previously selected
+            if idx in selected_indices:
+                item.setSelected(True)
         
+        # Re-enable signals
+        self.tree.blockSignals(False)
+        
+        # Emit selection changed only once after all items are added
         self.update_selection_info()
+        
+        # Clear flag to allow preview updates again
+        self._is_sorting = False
     
     def _extract_numeric_value(self, value_str: str) -> tuple:
         """Extract numeric value from string, returning (has_denominator, numeric_value).
@@ -683,8 +964,15 @@ class MainWindow(QMainWindow):
         self.on_sort_changed()
     
     def on_sort_changed(self):
-        """Apply multi-level sorting."""
+        """Apply multi-level sorting with debouncing to prevent cascading updates."""
+        # Reset debounce timer - this prevents rapid successive sorts
+        self._sort_debounce_timer.stop()
+        self._sort_debounce_timer.start(self._sort_debounce_delay)
+    
+    def _apply_sort(self):
+        """Internal method to actually apply the sort (called by debounce timer)."""
         self.sort_handler.apply_sort()
+
     
     def on_tree_selection_changed(self):
         """Handle selection changes."""
@@ -754,9 +1042,9 @@ class MainWindow(QMainWindow):
                 self.save_json_btn.setEnabled(False)
                 # Refresh the folder to reload file data
                 self.refresh_current_folder()
-                QMessageBox.information(self, "Success", "JSON updated successfully!")
+                custom_dialogs.information(self, "Success", "JSON updated successfully!")
         except json.JSONDecodeError as e:
-            QMessageBox.critical(self, "Error", f"Invalid JSON: {e}")
+            custom_dialogs.critical(self, "Error", f"Invalid JSON: {e}")
     
     def on_filename_changed(self):
         """Enable save button when filename is changed."""
@@ -876,14 +1164,6 @@ By Artist:
     
     # ===== MENU ACTIONS =====
     
-    def undo(self):
-        """Undo."""
-        QMessageBox.information(self, "Info", "Coming soon.")
-    
-    def redo(self):
-        """Redo."""
-        QMessageBox.information(self, "Info", "Coming soon.")
-    
     def show_about(self):
         """About."""
         QMessageBox.information(self, "About",
@@ -895,16 +1175,19 @@ By Artist:
     
     def show_preferences(self):
         """Show preferences dialog."""
-        dialog = QDialog(self)
+        dialog = QDialog()
+        dialog.setWindowFlags(Qt.Dialog)
         dialog.setWindowTitle("Preferences")
         dialog.setMinimumWidth(400)
         
         layout = QVBoxLayout(dialog)
         layout.setSpacing(10)
         
+        c = self.theme_colors
+        
         # Auto-reopen section
         auto_group = QFrame()
-        auto_group.setStyleSheet("QFrame { background-color: #2d2d2d; border-radius: 4px; padding: 10px; }")
+        auto_group.setStyleSheet(f"QFrame {{ background-color: {c['bg_tertiary']}; border-radius: 4px; padding: 10px; }}")
         auto_layout = QVBoxLayout(auto_group)
         
         auto_label = QLabel("Startup Behavior")
@@ -918,7 +1201,7 @@ By Artist:
         last_folder = SettingsManager.last_folder_opened
         if last_folder:
             folder_label = QLabel(f"Last folder: {last_folder}")
-            folder_label.setStyleSheet("color: #aaaaaa; font-size: 9pt;")
+            folder_label.setStyleSheet(f"color: {c['text_secondary']}; font-size: 9pt;")
             folder_label.setWordWrap(True)
             auto_layout.addWidget(folder_label)
         
@@ -926,22 +1209,47 @@ By Artist:
         
         # Theme selection section
         theme_group = QFrame()
-        theme_group.setStyleSheet("QFrame { background-color: #2d2d2d; border-radius: 4px; padding: 10px; }")
+        theme_group.setStyleSheet(f"QFrame {{ background-color: {c['bg_tertiary']}; border-radius: 4px; padding: 10px; }}")
         theme_layout = QVBoxLayout(theme_group)
         
         theme_label = QLabel("Appearance")
         theme_label.setStyleSheet("font-weight: bold; font-size: 11pt;")
         theme_layout.addWidget(theme_label)
-        
+
         theme_combo = QComboBox()
-        theme_combo.addItems(["Dark", "Light"])
+        theme_combo.addItems(["System", "Dark", "Light"])
         # Get current theme and normalize capitalization
-        current_theme = SettingsManager.theme or "dark"
+        current_theme = SettingsManager.theme or "system"
         if current_theme.lower() == "dark":
             current_theme = "Dark"
         elif current_theme.lower() == "light":
             current_theme = "Light"
+        elif current_theme.lower() == "system":
+            current_theme = "System"
         theme_combo.setCurrentText(current_theme)
+        # Style the theme combo with dropdown arrow
+        dropdown_bg = '#2d2d2d' if c.get('bg_primary') == '#1e1e1e' else '#ffffff'
+        theme_combo.setStyleSheet(f"""
+            QComboBox {{
+                background-color: {c['bg_primary']};
+                color: {c['text']};
+                border: 1px solid {c['border']};
+                border-radius: 3px;
+                padding: 4px;
+                padding-right: 18px;
+            }}
+            QComboBox::drop-down {{
+                border: none;
+                width: 18px;
+                background-color: transparent;
+            }}
+            QComboBox QAbstractItemView {{
+                background-color: {dropdown_bg};
+                color: {c['text']};
+                selection-background-color: {c['button']};
+                selection-color: #ffffff;
+            }}
+        """)
         theme_layout.addWidget(theme_combo)
         
         # UI Scale
@@ -998,6 +1306,7 @@ By Artist:
         SettingsManager.auto_reopen_last_folder = auto_reopen
         # Normalize theme to lowercase for storage
         SettingsManager.theme = theme.lower()
+        SettingsManager.follow_system_theme = SettingsManager.theme == "system"
         SettingsManager.ui_scale = ui_scale
         SettingsManager.save_settings()
         self._apply_theme_from_system()
@@ -1006,12 +1315,12 @@ By Artist:
         
         # Check if UI scale changed
         if abs(ui_scale - old_ui_scale) > 0.01:
-            QMessageBox.information(self, "Success", 
+            custom_dialogs.information(self, "Success", 
                 "Preferences saved!\n\n"
                 "UI scale change requires app restart to take full effect.\n"
                 "Please close and reopen the application.")
         else:
-            QMessageBox.information(self, "Success", "Preferences saved!")
+            custom_dialogs.information(self, "Success", "Preferences saved!")
     
     def _reset_all_settings(self, dialog):
         """Reset all settings to defaults."""
@@ -1072,8 +1381,14 @@ By Artist:
     def save_settings(self):
         """Save settings."""
         try:
-            SettingsManager.window_width = self.width()
-            SettingsManager.window_height = self.height()
+            # Use Qt's native geometry saving (includes position, size, maximized state)
+            geom_bytes = self.saveGeometry()
+            SettingsManager.window_geometry = geom_bytes.toBase64().data().decode('ascii')
+            
+            # Save window state (docking, toolbars, etc)
+            state_bytes = self.saveState()
+            SettingsManager.window_state = state_bytes.toBase64().data().decode('ascii')
+            
             if hasattr(self, 'main_splitter'):
                 SettingsManager.splitter_sizes = self.main_splitter.sizes()
             
@@ -1099,8 +1414,27 @@ By Artist:
     def load_settings(self):
         """Load settings."""
         try:
-            if hasattr(SettingsManager, 'window_width'):
+            # Restore Qt's native geometry (position, size, maximized state)
+            if SettingsManager.window_geometry:
+                try:
+                    geom_bytes = QByteArray.fromBase64(SettingsManager.window_geometry.encode('ascii'))
+                    self.restoreGeometry(geom_bytes)
+                except Exception as e:
+                    logger.debug(f"Error restoring geometry: {e}")
+                    # Fallback to old size settings
+                    if hasattr(SettingsManager, 'window_width'):
+                        self.resize(SettingsManager.window_width, SettingsManager.window_height)
+            elif hasattr(SettingsManager, 'window_width'):
+                # Fallback for old settings format
                 self.resize(SettingsManager.window_width, SettingsManager.window_height)
+            
+            # Restore window state (docking, toolbars, etc)
+            if SettingsManager.window_state:
+                try:
+                    state_bytes = QByteArray.fromBase64(SettingsManager.window_state.encode('ascii'))
+                    self.restoreState(state_bytes)
+                except Exception as e:
+                    logger.debug(f"Error restoring state: {e}")
             
             if hasattr(SettingsManager, 'theme'):
                 self.current_theme = SettingsManager.theme or "System"
@@ -1208,8 +1542,32 @@ def main():
     if ui_scale != 1.0:
         os.environ['QT_SCALE_FACTOR'] = str(ui_scale)
     
+    # Improve Wayland window management compatibility
+    os.environ.setdefault('QT_QPA_PLATFORM_THEME', 'gnome')
+    
     app = QApplication(sys.argv)
     app.setStyle('Fusion')
+    
+    # Apply theme palette to the application (critical for AppImage) - VS Code Modern themes
+    theme = (SettingsManager.theme or "dark").lower()
+    if theme == "dark":
+        # VS Code Dark Modern palette
+        dark_palette = QPalette()
+        dark_palette.setColor(QPalette.ColorRole.Window, QColor(30, 30, 30))           # #1e1e1e
+        dark_palette.setColor(QPalette.ColorRole.WindowText, QColor(204, 204, 204))   # #cccccc
+        dark_palette.setColor(QPalette.ColorRole.Base, QColor(30, 30, 30))            # #1e1e1e
+        dark_palette.setColor(QPalette.ColorRole.AlternateBase, QColor(37, 37, 38))   # #252526
+        dark_palette.setColor(QPalette.ColorRole.ToolTipBase, QColor(37, 37, 38))     # #252526
+        dark_palette.setColor(QPalette.ColorRole.ToolTipText, QColor(204, 204, 204))  # #cccccc
+        dark_palette.setColor(QPalette.ColorRole.Text, QColor(204, 204, 204))         # #cccccc
+        dark_palette.setColor(QPalette.ColorRole.Button, QColor(45, 45, 48))          # #2d2d30
+        dark_palette.setColor(QPalette.ColorRole.ButtonText, QColor(204, 204, 204))   # #cccccc
+        dark_palette.setColor(QPalette.ColorRole.BrightText, QColor(255, 0, 0))       # Errors
+        dark_palette.setColor(QPalette.ColorRole.Link, QColor(58, 150, 221))          # #3a96dd
+        dark_palette.setColor(QPalette.ColorRole.Highlight, QColor(38, 79, 120))      # #264f78
+        dark_palette.setColor(QPalette.ColorRole.HighlightedText, QColor(255, 255, 255))
+        dark_palette.setColor(QPalette.ColorRole.PlaceholderText, QColor(133, 133, 133))  # #858585
+        app.setPalette(dark_palette)
     
     # Apply font scaling if needed
     if ui_scale != 1.0:

@@ -11,7 +11,12 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QCursor
 
 from df_metadata_customizer.core import SettingsManager
-from df_metadata_customizer.ui.platform_utils import open_file_with_default_app, open_folder_with_file_manager
+from df_metadata_customizer.ui.platform_utils import (
+    open_file_with_default_app, 
+    open_folder_with_file_manager,
+    open_file_with_player,
+    get_available_players
+)
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +29,7 @@ class TreeViewManager:
         self.tree_columns = tree_columns
         # Note: Don't store song_files reference, always access parent.song_files
         self.tree = None
+        self._active_menu = None  # Track active context menu
     
     def create_tree_view(self) -> QTreeWidget:
         """Create tree view with all metadata columns."""
@@ -51,7 +57,7 @@ class TreeViewManager:
         header.sectionMoved.connect(self.on_column_moved)
         
         # Set column widths
-        widths = [150, 120, 100, 70, 80, 50, 50, 150, 80]
+        widths = [250, 250, 130, 40, 110, 20, 85, 20, 350]
         for i, w in enumerate(widths[:len(col_labels)]):
             tree.setColumnWidth(i, w)
         
@@ -66,40 +72,62 @@ class TreeViewManager:
         # Connect currentItemChanged for keyboard navigation
         tree.currentItemChanged.connect(self.on_tree_current_item_changed)
         
-        tree.setStyleSheet("""
-            QTreeWidget {
-                background-color: #1e1e1e;
-                color: #ffffff;
-                border: 1px solid #3d3d3d;
-                border-radius: 4px;
-                gridline-color: #3d3d3d;
-            }
-            QTreeWidget::item {
-                border-right: 1px solid #3d3d3d;
-                padding: 2px;
-            }
-            QTreeWidget::item:hover:!selected {
-                background-color: #2d2d2d;
-            }
-            QTreeWidget::item:selected {
-                background-color: #0d47a1;
-            }
-            QTreeWidget::item:selected:hover {
-                background-color: #1565c0;
-            }
-            QHeaderView::section {
-                background-color: #2d2d2d;
-                color: #ffffff;
-                padding: 4px;
-                border: none;
-                border-right: 1px solid #555555;
-                border-bottom: 1px solid #555555;
-            }
-        """)
+        # Stylesheet will be set by update_tree_stylesheet
         
         tree.itemSelectionChanged.connect(self.parent.on_tree_selection_changed)
         self.tree = tree
         return tree
+    
+    def update_tree_stylesheet(self, theme_colors: dict):
+        """Update tree stylesheet with current theme colors - VS Code Modern themes."""
+        if self.tree:
+            c = theme_colors
+            is_dark = c.get('bg_primary', '#1e1e1e') == '#1e1e1e'
+            
+            if is_dark:
+                # VS Code Dark Modern
+                hover_color = '#2a2d2e'      # Subtle hover
+                header_bg = '#252526'         # Sidebar color
+                border_light = '#454545'
+                selection_hover = '#094771'   # Lighter selection on hover
+            else:
+                # VS Code Light Modern
+                hover_color = '#f0f0f0'       # Light hover
+                header_bg = '#f3f3f3'         # Sidebar color
+                border_light = '#d4d4d4'
+                selection_hover = '#33a3dc'   # Lighter selection on hover
+            
+            self.tree.setStyleSheet(f"""
+                QTreeWidget {{
+                    background-color: {c['bg_primary']};
+                    color: {c['text']};
+                    border: 1px solid {c['border']};
+                    border-radius: 4px;
+                    gridline-color: {c['border']};
+                }}
+                QTreeWidget::item {{
+                    border-right: 1px solid {c['border']};
+                    padding: 2px;
+                }}
+                QTreeWidget::item:hover:!selected {{
+                    background-color: {hover_color};
+                }}
+                QTreeWidget::item:selected {{
+                    background-color: {c['button']};
+                    color: #ffffff;
+                }}
+                QTreeWidget::item:selected:hover {{
+                    background-color: {selection_hover};
+                }}
+                QHeaderView::section {{
+                    background-color: {header_bg};
+                    color: {c['text']};
+                    padding: 4px;
+                    border: none;
+                    border-right: 1px solid {border_light};
+                    border-bottom: 1px solid {border_light};
+                }}
+            """)
     
     def on_column_moved(self, logicalIndex, oldVisualIndex, newVisualIndex):
         """Save column order when user reorders columns."""
@@ -115,14 +143,18 @@ class TreeViewManager:
         if current:
             self.parent.current_selected_file = current.data(0, Qt.ItemDataRole.UserRole)
             self.parent.current_index = self.tree.indexOfTopLevelItem(current)
-            self.parent.update_preview_info()
+            # Only update preview if not currently sorting
+            if not getattr(self.parent, '_is_sorting', False):
+                self.parent.update_preview_info()
     
     def on_tree_item_clicked(self, item, column):
         """Handle tree item click - show info for clicked item."""
         # Don't clear selection - let Qt handle multi-select (Ctrl/Shift)
         self.parent.current_selected_file = item.data(0, Qt.ItemDataRole.UserRole)
         self.parent.current_index = self.tree.indexOfTopLevelItem(item)
-        self.parent.update_preview_info()
+        # Only update preview if not currently sorting
+        if not getattr(self.parent, '_is_sorting', False):
+            self.parent.update_preview_info()
     
     def on_tree_item_double_clicked(self, item, column):
         """Handle tree item double-click - play the file."""
@@ -137,24 +169,50 @@ class TreeViewManager:
     
     def on_tree_right_click(self, position):
         """Show context menu on right-click."""
+        # Close any existing menu first
+        if self._active_menu:
+            self._active_menu.close()
+            self._active_menu = None
+        
         item = self.tree.itemAt(position)
         if not item:
             return
         
         menu = QMenu(self.parent)
-        menu.setStyleSheet("""
-            QMenu {
-                background-color: #1e1e1e;
+        self._active_menu = menu
+        c = getattr(self.parent, "theme_colors", None) or {}
+        is_dark = SettingsManager.theme == "dark"
+        menu_bg = c.get("bg_primary", "#1e1e1e" if is_dark else "#ffffff")
+        menu_text = c.get("text", "#cccccc" if is_dark else "#3b3b3b")
+        menu_border = c.get("border", "#454545" if is_dark else "#e5e5e5")
+        menu_accent = c.get("button", "#0e639c" if is_dark else "#007acc")
+        menu.setStyleSheet(f"""
+            QMenu {{
+                background-color: {menu_bg};
+                color: {menu_text};
+                border: 1px solid {menu_border};
+            }}
+            QMenu::item:selected {{
+                background-color: {menu_accent};
                 color: #ffffff;
-            }
-            QMenu::item:selected {
-                background-color: #0d47a1;
-            }
+            }}
         """)
         
-        # Play
+        # Play (with system default)
         action = menu.addAction("▶️ Play")
         action.triggered.connect(lambda: self.play_file(item))
+        
+        # Play With (submenu with available players)
+        available_players = get_available_players()
+        if available_players:
+            play_with_menu = menu.addMenu("▶️ Play With")
+            for player_name, player_path in available_players:
+                action = play_with_menu.addAction(player_name)
+                action.triggered.connect(lambda checked=False, p=player_path: self.play_file_with_player(item, p))
+            
+            play_with_menu.addSeparator()
+            action = play_with_menu.addAction("Custom Player...")
+            action.triggered.connect(lambda: self.play_file_with_custom_player(item))
 
         if hasattr(self.parent, "is_song_edit_active") and self.parent.is_song_edit_active():
             action = menu.addAction("➕ Copy as New Song")
@@ -179,7 +237,7 @@ class TreeViewManager:
         menu.exec(QCursor.pos())
     
     def play_file(self, item):
-        """Play file."""
+        """Play file with system default application."""
         idx = item.data(0, Qt.ItemDataRole.UserRole)
         if idx is not None and idx < len(self.parent.song_files):
             file_path = self.parent.song_files[idx].get('path', '')
@@ -188,6 +246,45 @@ class TreeViewManager:
                     open_file_with_default_app(file_path)
                 except Exception as e:
                     QMessageBox.warning(self.parent, "Error", f"Cannot play file: {e}")
+    
+    def play_file_with_player(self, item, player_path):
+        """Play file with specified player."""
+        idx = item.data(0, Qt.ItemDataRole.UserRole)
+        if idx is not None and idx < len(self.parent.song_files):
+            file_path = self.parent.song_files[idx].get('path', '')
+            if file_path:
+                try:
+                    open_file_with_player(file_path, player_path)
+                    # Set as default player
+                    SettingsManager.default_player = player_path
+                    SettingsManager.save_settings()
+                except Exception as e:
+                    QMessageBox.warning(self.parent, "Error", f"Cannot play file: {e}")
+    
+    def play_file_with_custom_player(self, item):
+        """Play file with custom player path entered by user."""
+        from PySide6.QtWidgets import QInputDialog
+        
+        player_path, ok = QInputDialog.getText(
+            self.parent,
+            "Custom Player",
+            "Enter player path or command:",
+            text=SettingsManager.default_player or ""
+        )
+        
+        if ok and player_path:
+            try:
+                idx = item.data(0, Qt.ItemDataRole.UserRole)
+                if idx is not None and idx < len(self.parent.song_files):
+                    file_path = self.parent.song_files[idx].get('path', '')
+                    if file_path:
+                        open_file_with_player(file_path, player_path)
+                        # Set as default player
+                        SettingsManager.default_player = player_path
+                        SettingsManager.save_settings()
+            except Exception as e:
+                QMessageBox.warning(self.parent, "Error", f"Cannot play file: {e}")
+    
     
     def copy_metadata(self, item):
         """Copy song metadata to clipboard."""

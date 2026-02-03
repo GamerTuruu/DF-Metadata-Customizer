@@ -16,7 +16,8 @@ class SettingsManager:
     APP_NAME = "df_metadata_customizer"
 
     # Settings
-    theme: ClassVar[str] = "dark"
+    theme: ClassVar[str] = "system"
+    follow_system_theme: ClassVar[bool] = True
     ui_scale: ClassVar[float] = 1.0
     last_folder_opened: ClassVar[str | None] = None
     auto_reopen_last_folder: ClassVar[bool | None] = False
@@ -25,8 +26,11 @@ class SettingsManager:
     pending_column_widths: ClassVar[list[int] | None] = None
     window_width: ClassVar[int] = 1400
     window_height: ClassVar[int] = 900
+    window_geometry: ClassVar[str | None] = None  # Qt geometry as base64
+    window_state: ClassVar[str | None] = None  # Qt state (maximized, etc) as base64
     splitter_sizes: ClassVar[list[int]] = []
     sort_rules: ClassVar[list[tuple]] = [("Title", True)]  # List of (field, ascending) tuples
+    default_player: ClassVar[str | None] = None  # Path or command to use for playing files
 
     @classmethod
     def initialize(cls) -> None:
@@ -76,6 +80,7 @@ class SettingsManager:
         """Save settings dictionary to JSON file."""
         data = {
             "theme": cls.theme,
+            "follow_system_theme": cls.follow_system_theme,
             "ui_scale": cls.ui_scale,
             "last_folder_opened": cls.last_folder_opened,
             "auto_reopen_last_folder": cls.auto_reopen_last_folder,
@@ -84,8 +89,11 @@ class SettingsManager:
             "pending_column_widths": cls.pending_column_widths,
             "window_width": cls.window_width,
             "window_height": cls.window_height,
+            "window_geometry": cls.window_geometry,
+            "window_state": cls.window_state,
             "splitter_sizes": cls.splitter_sizes,
             "sort_rules": cls.sort_rules,
+            "default_player": cls.default_player,
         }
         try:
             with cls.get_settings_path().open("w", encoding="utf-8") as f:
@@ -103,6 +111,7 @@ class SettingsManager:
                 data = json.load(f)
 
             cls.theme = data.get("theme", "dark")
+            cls.follow_system_theme = data.get("follow_system_theme", True)
             cls.ui_scale = data.get("ui_scale", 1.0)
             cls.last_folder_opened = data.get("last_folder_opened")
             cls.auto_reopen_last_folder = data.get("auto_reopen_last_folder")
@@ -111,10 +120,13 @@ class SettingsManager:
             cls.pending_column_widths = data.get("pending_column_widths")
             cls.window_width = data.get("window_width", 1400)
             cls.window_height = data.get("window_height", 900)
+            cls.window_geometry = data.get("window_geometry")
+            cls.window_state = data.get("window_state")
             cls.splitter_sizes = data.get("splitter_sizes", [])
             # Load sort_rules as list of tuples
             sort_rules_data = data.get("sort_rules", [("Title", True)])
             cls.sort_rules = [tuple(rule) if isinstance(rule, list) else rule for rule in sort_rules_data]
+            cls.default_player = data.get("default_player")
         except Exception:
             logger.exception("Error loading settings")
 

@@ -40,15 +40,7 @@ class PresetManager:
         layout.addWidget(label, 0, Qt.AlignmentFlag.AlignVCenter)
         
         self.preset_combo = NoScrollComboBox()
-        self.preset_combo.setStyleSheet("""
-            QComboBox {
-                background-color: #1e1e1e;
-                color: #ffffff;
-                border: 1px solid #3d3d3d;
-                border-radius: 4px;
-                padding: 4px;
-            }
-        """)
+        # Stylesheet will be set by update_preset_stylesheet
         self.preset_combo.currentTextChanged.connect(self.on_preset_selected)
         layout.addWidget(self.preset_combo)
         
@@ -68,6 +60,39 @@ class PresetManager:
         layout.addWidget(save_btn)
         
         return frame, self.preset_combo
+    
+    def update_preset_stylesheet(self, theme_colors: dict):
+        """Update preset combo stylesheet with current theme colors."""
+        if self.preset_combo:
+            c = theme_colors
+            is_dark = c.get('bg_primary', '#1e1e1e') == '#1e1e1e'
+            
+            if is_dark:
+                dropdown_bg = '#2d2d2d'
+            else:
+                dropdown_bg = '#ffffff'
+            
+            self.preset_combo.setStyleSheet(f"""
+                QComboBox {{
+                    background-color: {c['bg_primary']};
+                    color: {c['text']};
+                    border: 1px solid {c['border']};
+                    border-radius: 4px;
+                    padding: 4px;
+                    padding-right: 20px;
+                }}
+                QComboBox::drop-down {{
+                    border: none;
+                    width: 20px;
+                    background-color: transparent;
+                }}
+                QComboBox QAbstractItemView {{
+                    background-color: {dropdown_bg};
+                    color: {c['text']};
+                    selection-background-color: {c['button']};
+                    selection-color: #ffffff;
+                }}
+            """)
     
     def load_presets(self):
         """Load available presets into combo box."""

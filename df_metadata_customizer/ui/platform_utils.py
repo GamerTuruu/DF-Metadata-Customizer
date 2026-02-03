@@ -3,28 +3,123 @@
 import subprocess
 import platform
 import os
+import shutil
 from pathlib import Path
+from typing import List, Tuple
+
+
+def get_available_players() -> List[Tuple[str, str]]:
+    """Get list of available media players on the system.
+    
+    Returns:
+        List of tuples (display_name, command/path)
+    """
+    system = platform.system()
+    players = []
+    
+    if system == "Darwin":  # macOS
+        # Common macOS players
+        common_players = [
+            ("iTunes/Music", "/Applications/Music.app"),
+            ("VLC", "/Applications/VLC.app"),
+            ("Spotify", "/Applications/Spotify.app"),
+            ("QuickTime", "/Applications/QuickTime Player.app"),
+            ("IINA", "/Applications/IINA.app"),
+            ("mpv", "mpv"),
+        ]
+        for name, path in common_players:
+            if "/" in path and path.startswith("/Applications"):
+                if Path(path).exists():
+                    players.append((name, path))
+            else:
+                if shutil.which(path):
+                    players.append((name, path))
+    
+    elif system == "Windows":
+        # Common Windows players
+        common_players = [
+            ("Windows Media Player", "wmplayer.exe"),
+            ("VLC", "C:\\Program Files\\VideoLAN\\VLC\\vlc.exe"),
+            ("VLC (32-bit)", "C:\\Program Files (x86)\\VideoLAN\\VLC\\vlc.exe"),
+            ("Spotify", "C:\\Users\\{username}\\AppData\\Roaming\\Spotify\\Spotify.exe"),
+            ("foobar2000", "C:\\Program Files\\foobar2000\\foobar2000.exe"),
+            ("foobar2000 (32-bit)", "C:\\Program Files (x86)\\foobar2000\\foobar2000.exe"),
+            ("MPC-HC", "C:\\Program Files\\MPC-HC\\mpc-hc.exe"),
+            ("MPC-HC (32-bit)", "C:\\Program Files (x86)\\MPC-HC\\mpc-hc.exe"),
+        ]
+        
+        for name, path in common_players:
+            if "{username}" in path:
+                path = path.format(username=os.getenv("USERNAME", ""))
+            if Path(path).exists():
+                players.append((name, path))
+            elif name == "Windows Media Player" and shutil.which(path):
+                players.append((name, path))
+    
+    else:  # Linux
+        # Common Linux players
+        common_players = [
+            ("VLC", "vlc"),
+            ("mpv", "mpv"),
+            ("ffplay", "ffplay"),
+            ("cplay", "cplay"),
+            ("Audacious", "audacious"),
+            ("Clementine", "clementine"),
+            ("Rhythmbox", "rhythmbox"),
+            ("Amarok", "amarok"),
+            ("MPC", "mpc"),
+        ]
+        for name, cmd in common_players:
+            if shutil.which(cmd):
+                players.append((name, cmd))
+    
+    return players
+
+
+def open_file_with_player(file_path: str, player_path: str | None = None) -> None:
+    """Open file with specified player or default application.
+    
+    Args:
+        file_path: Path to the file to open
+        player_path: Path or command to player. If None, uses default app.
+    """
+    abs_path = str(Path(file_path).resolve())
+    system = platform.system()
+    
+    try:
+        if player_path is None:
+            # Use default application
+            if system == "Darwin":
+                subprocess.Popen(["open", abs_path], stdout=subprocess.DEVNULL, 
+                               stderr=subprocess.DEVNULL, close_fds=True)
+            elif system == "Windows":
+                os.startfile(abs_path)
+            else:  # Linux
+                subprocess.Popen(["xdg-open", abs_path], stdout=subprocess.DEVNULL, 
+                               stderr=subprocess.DEVNULL, close_fds=True, 
+                               start_new_session=True)
+        else:
+            # Use specified player
+            if system == "Darwin" and player_path.endswith(".app"):
+                # macOS app bundle
+                subprocess.Popen(["open", "-a", player_path, abs_path], 
+                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, 
+                               close_fds=True)
+            elif system == "Windows":
+                subprocess.Popen([player_path, abs_path], 
+                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, 
+                               close_fds=True)
+            else:  # Linux
+                subprocess.Popen([player_path, abs_path], 
+                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, 
+                               close_fds=True, start_new_session=True)
+    except Exception as e:
+        raise Exception(f"Failed to open file with player: {e}")
 
 
 def open_file_with_default_app(file_path: str) -> None:
     """Open file with default application (cross-platform)."""
-    # Ensure absolute path
-    abs_path = str(Path(file_path).resolve())
-    
-    system = platform.system()
-    try:
-        if system == "Darwin":  # macOS
-            subprocess.Popen(["open", abs_path], stdout=subprocess.DEVNULL, 
-                           stderr=subprocess.DEVNULL, close_fds=True)
-        elif system == "Windows":
-            os.startfile(abs_path)
-        else:  # Linux and other Unix-like systems
-            # Use start_new_session to detach process and make it non-blocking
-            subprocess.Popen(["xdg-open", abs_path], stdout=subprocess.DEVNULL, 
-                           stderr=subprocess.DEVNULL, close_fds=True, 
-                           start_new_session=True)
-    except Exception as e:
-        raise Exception(f"Failed to open file: {e}")
+    open_file_with_player(file_path, None)
 
 
 def open_folder_with_file_manager(folder_path: str, file_to_select: str = None) -> None:

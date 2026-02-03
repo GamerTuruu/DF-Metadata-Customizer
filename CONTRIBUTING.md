@@ -13,7 +13,7 @@ This project is open to contributions. The following guide will help setup the e
 2. Clone the fork with `git`
 
     ```bash
-    git clone https://github.com/{your-user}/DF-Metadata-Customizer.git
+    git clone https://github.com/GamerTuruu/DF-Metadata-Customizer.git
     cd DF-Metadata-Customizer
     ```
 

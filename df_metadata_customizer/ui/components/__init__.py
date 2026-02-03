@@ -31,13 +31,6 @@ def setup_menubar(window, menubar: QMenuBar) -> None:
     action = file_menu.addAction("Exit")
     action.triggered.connect(window.close)
     
-    # Edit menu
-    edit_menu = menubar.addMenu("Edit")
-    action = edit_menu.addAction("Undo")
-    action.triggered.connect(window.undo)
-    action = edit_menu.addAction("Redo")
-    action.triggered.connect(window.redo)
-    
     # Help menu
     help_menu = menubar.addMenu("Help")
     action = help_menu.addAction("About")

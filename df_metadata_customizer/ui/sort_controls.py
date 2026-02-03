@@ -5,6 +5,7 @@ from PySide6.QtWidgets import (
     QFrame, QHBoxLayout, QPushButton, QLabel, QMessageBox
 )
 from df_metadata_customizer.ui.rule_widgets import NoScrollComboBox
+from df_metadata_customizer.core import SettingsManager
 
 
 class SortControlsManager:
@@ -73,8 +74,8 @@ class SortControlsManager:
         field_combo.addItem("Date")
         field_combo.addItem("Disc")
         field_combo.addItem("Track")
-        field_combo.addItem("File")
         field_combo.addItem("Special")
+        field_combo.addItem("Filename")
         if not is_first:
             field_combo.setCurrentText("Artist")
         field_combo.setFixedWidth(100)
@@ -91,80 +92,21 @@ class SortControlsManager:
         # Move up button
         up_btn = QPushButton("◀")
         up_btn.setFixedSize(25, 25)
-        up_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #3a3a3a;
-                color: #888;
-                border: 1px solid #555;
-                border-radius: 3px;
-            }
-            QPushButton:hover {
-                background-color: #484848;
-                color: #aaa;
-            }
-            QPushButton:pressed {
-                background-color: #2a2a2a;
-            }
-            QPushButton:disabled {
-                background-color: #2b2b2b;
-                color: #555;
-                border: 1px solid #444;
-            }
-        """)
+        up_btn.setStyleSheet("")
         up_btn.clicked.connect(lambda checked=False, rule_frame=rule_frame: self._move_sort_rule_by_frame(rule_frame, -1))
         rule_layout.addWidget(up_btn)
         
         # Move down button
         down_btn = QPushButton("▶")
         down_btn.setFixedSize(25, 25)
-        down_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #3a3a3a;
-                color: #888;
-                border: 1px solid #555;
-                border-radius: 3px;
-            }
-            QPushButton:hover {
-                background-color: #484848;
-                color: #aaa;
-            }
-            QPushButton:pressed {
-                background-color: #2a2a2a;
-            }
-            QPushButton:disabled {
-                background-color: #2b2b2b;
-                color: #555;
-                border: 1px solid #444;
-            }
-        """)
+        down_btn.setStyleSheet("")
         down_btn.clicked.connect(lambda checked=False, rule_frame=rule_frame: self._move_sort_rule_by_frame(rule_frame, 1))
         rule_layout.addWidget(down_btn)
         
         # Remove button
         remove_btn = QPushButton("✕")
         remove_btn.setFixedSize(25, 25)
-        remove_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #3a3a3a;
-                color: #999;
-                border: 1px solid #555;
-                border-radius: 3px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #484848;
-                color: #aaa;
-                border: 1px solid #666;
-            }
-            QPushButton:pressed {
-                background-color: #2a2a2a;
-            }
-            QPushButton:disabled {
-                background-color: #2b2b2b;
-                color: #555;
-                border: 1px solid #444;
-            }
-        """)
+        remove_btn.setStyleSheet("")
         remove_btn.clicked.connect(lambda checked=False, rule_frame=rule_frame: self._remove_sort_rule_by_frame(rule_frame))
         rule_layout.addWidget(remove_btn)
         
@@ -185,6 +127,8 @@ class SortControlsManager:
             'is_first': is_first
         })
         self._update_sort_button_states()
+        if hasattr(self.parent, "theme_colors") and self.parent.theme_colors:
+            self.update_theme(self.parent.theme_colors, SettingsManager.theme == "dark")
     
     def add_sort_rule(self):
         """Add another sort level."""
@@ -258,7 +202,7 @@ class SortControlsManager:
             
             # Field selector
             new_field_combo = NoScrollComboBox()
-            new_field_combo.addItems(["Title", "Artist", "Cover Artist", "Version", "Date", "Disc", "Track", "File", "Special"])
+            new_field_combo.addItems(["Title", "Artist", "Cover Artist", "Version", "Date", "Disc", "Track", "Special", "Filename"])
             new_field_combo.setCurrentText(field_text)
             new_field_combo.setFixedWidth(100)
             new_field_combo.currentTextChanged.connect(self.on_sort_changed)
@@ -275,80 +219,21 @@ class SortControlsManager:
             # Move up button
             up_btn = QPushButton("◀")
             up_btn.setFixedSize(25, 25)
-            up_btn.setStyleSheet("""
-                QPushButton {
-                    background-color: #3a3a3a;
-                    color: #888;
-                    border: 1px solid #555;
-                    border-radius: 3px;
-                }
-                QPushButton:hover {
-                    background-color: #484848;
-                    color: #aaa;
-                }
-                QPushButton:pressed {
-                    background-color: #2a2a2a;
-                }
-                QPushButton:disabled {
-                    background-color: #2b2b2b;
-                    color: #555;
-                    border: 1px solid #444;
-                }
-            """)
+            up_btn.setStyleSheet("")
             up_btn.clicked.connect(lambda checked=False, frame=new_frame: self._move_sort_rule_by_frame(frame, -1))
             new_layout.addWidget(up_btn)
             
             # Move down button
             down_btn = QPushButton("▶")
             down_btn.setFixedSize(25, 25)
-            down_btn.setStyleSheet("""
-                QPushButton {
-                    background-color: #3a3a3a;
-                    color: #888;
-                    border: 1px solid #555;
-                    border-radius: 3px;
-                }
-                QPushButton:hover {
-                    background-color: #484848;
-                    color: #aaa;
-                }
-                QPushButton:pressed {
-                    background-color: #2a2a2a;
-                }
-                QPushButton:disabled {
-                    background-color: #2b2b2b;
-                    color: #555;
-                    border: 1px solid #444;
-                }
-            """)
+            down_btn.setStyleSheet("")
             down_btn.clicked.connect(lambda checked=False, frame=new_frame: self._move_sort_rule_by_frame(frame, 1))
             new_layout.addWidget(down_btn)
             
             # Remove button
             remove_btn = QPushButton("✕")
             remove_btn.setFixedSize(25, 25)
-            remove_btn.setStyleSheet("""
-                QPushButton {
-                    background-color: #3a3a3a;
-                    color: #999;
-                    border: 1px solid #555;
-                    border-radius: 3px;
-                    font-weight: bold;
-                }
-                QPushButton:hover {
-                    background-color: #484848;
-                    color: #aaa;
-                    border: 1px solid #666;
-                }
-                QPushButton:pressed {
-                    background-color: #2a2a2a;
-                }
-                QPushButton:disabled {
-                    background-color: #2b2b2b;
-                    color: #555;
-                    border: 1px solid #444;
-                }
-            """)
+            remove_btn.setStyleSheet("")
             remove_btn.clicked.connect(lambda checked=False, frame=new_frame: self._remove_sort_rule_by_frame(frame))
             new_layout.addWidget(remove_btn)
             
@@ -372,6 +257,8 @@ class SortControlsManager:
         
         container_layout.addStretch()
         self._update_sort_button_states()
+        if hasattr(self.parent, "theme_colors") and self.parent.theme_colors:
+            self.update_theme(self.parent.theme_colors, SettingsManager.theme == "dark")
 
     def _update_sort_button_states(self):
         """Enable/disable sort rule buttons based on position and count."""
@@ -394,4 +281,71 @@ class SortControlsManager:
             field = rule_info['field'].currentText()
             ascending = rule_info['order'].currentText() == "Asc"
             rules.append((field, ascending))
-        return rules
+        return rules    
+    def update_theme(self, theme_colors: dict, is_dark: bool):
+        """Update sort controls with current theme colors."""
+        c = theme_colors
+        
+        button_pressed = '#2a2d2e' if is_dark else '#d8d8d8'
+        button_disabled = '#252526' if is_dark else '#f3f3f3'
+        text_disabled = '#858585' if is_dark else '#999999'
+        
+        # Light theme button colors should be visible
+        button_bg = c['bg_tertiary'] if is_dark else '#e8e8e8'
+        button_hover = c['bg_secondary'] if is_dark else '#d4d4d4'
+        button_text = c['text'] if is_dark else '#2d2d2d'
+        
+        dropdown_bg = '#2d2d2d' if is_dark else '#ffffff'
+        combo_stylesheet = f"""
+            QComboBox {{
+                background-color: {c['bg_primary']};
+                color: {c['text']};
+                border: 1px solid {c['border']};
+                border-radius: 3px;
+                padding: 4px;
+                padding-right: 18px;
+            }}
+            QComboBox::drop-down {{
+                border: none;
+                width: 18px;
+                background-color: transparent;
+            }}
+            QComboBox QAbstractItemView {{
+                background-color: {dropdown_bg};
+                color: {c['text']};
+                selection-background-color: {c['button']};
+                selection-color: #ffffff;
+            }}
+        """
+        
+        # Update all sort control buttons and comboboxes
+        for rule_info in self.sort_rules_list:
+            # Update comboboxes
+            for combo_key in ['field_combo', 'order_combo']:
+                combo = rule_info.get(combo_key)
+                if combo:
+                    combo.setStyleSheet(combo_stylesheet)
+            
+            # Update buttons
+            for btn_key in ['up_btn', 'down_btn', 'remove_btn']:
+                btn = rule_info.get(btn_key)
+                if btn:
+                    btn.setStyleSheet(f"""
+                        QPushButton {{
+                            background-color: {button_bg};
+                            color: {button_text};
+                            border: 1px solid {c['border']};
+                            border-radius: 3px;
+                        }}
+                        QPushButton:hover {{
+                            background-color: {button_hover};
+                        }}
+                        QPushButton:pressed {{
+                            background-color: {button_pressed};
+                        }}
+                        QPushButton:disabled {{
+                            background-color: {button_disabled};
+                            color: {text_disabled};
+                            border: 1px solid {c['border']};
+                        }}
+                    """)

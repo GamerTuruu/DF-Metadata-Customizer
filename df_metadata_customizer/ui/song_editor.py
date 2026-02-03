@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
     QGroupBox,
     QFormLayout,
     QFileDialog,
+    QInputDialog,
     QMessageBox,
     QScrollArea,
     QMenu,
@@ -36,6 +37,7 @@ from df_metadata_customizer.core.settings_manager import SettingsManager
 from df_metadata_customizer.core.song_utils import extract_json_from_song, get_id3_tags, get_cover_art
 from df_metadata_customizer.core.preset_service import PresetService
 from df_metadata_customizer.ui.rule_widgets import NoScrollComboBox
+from df_metadata_customizer.ui.platform_utils import open_file_with_player, get_available_players
 
 from remuxer import remux_song
 from hash_mutagen import get_audio_hash
@@ -56,6 +58,7 @@ class SongEditorManager:
         self._current_cover_bytes: bytes | None = None
         self._persistent_date: str | None = None  # Keep track of user-set date
         self._persistent_disc: str | None = None  # Keep track of user-set disc
+        self._active_menu = None  # Track active context menu
 
         self.pending_tree: QTreeWidget | None = None
         self.source_label: QLabel | None = None
@@ -997,6 +1000,46 @@ class SongEditorManager:
                     except Exception as e:
                         QMessageBox.warning(self.parent, "Error", f"Cannot play file: {e}")
                 return
+    
+    def _pending_play_with_player(self, item: QTreeWidgetItem, player_path: str) -> None:
+        """Play pending file with specified player."""
+        entry_id = item.data(0, Qt.ItemDataRole.UserRole)
+        for entry in self.pending_songs:
+            if entry.get("id") == entry_id:
+                source_path = entry.get("source_path", "")
+                if source_path and Path(source_path).exists():
+                    try:
+                        open_file_with_player(source_path, player_path)
+                        # Set as default player
+                        SettingsManager.default_player = player_path
+                        SettingsManager.save_settings()
+                    except Exception as e:
+                        QMessageBox.warning(self.parent, "Error", f"Cannot play file: {e}")
+                return
+    
+    def _pending_play_with_custom_player(self, item: QTreeWidgetItem) -> None:
+        """Play pending file with custom player entered by user."""
+        player_path, ok = QInputDialog.getText(
+            self.parent,
+            "Custom Player",
+            "Enter player path or command:",
+            text=SettingsManager.default_player or ""
+        )
+        
+        if ok and player_path:
+            entry_id = item.data(0, Qt.ItemDataRole.UserRole)
+            for entry in self.pending_songs:
+                if entry.get("id") == entry_id:
+                    source_path = entry.get("source_path", "")
+                    if source_path and Path(source_path).exists():
+                        try:
+                            open_file_with_player(source_path, player_path)
+                            # Set as default player
+                            SettingsManager.default_player = player_path
+                            SettingsManager.save_settings()
+                        except Exception as e:
+                            QMessageBox.warning(self.parent, "Error", f"Cannot play file: {e}")
+                    return
 
     def _on_pending_column_resized(self, logicalIndex: int, oldSize: int, newSize: int) -> None:
         """Save pending column widths when user resizes columns."""
@@ -1010,20 +1053,52 @@ class SongEditorManager:
 
     def _on_pending_right_click(self, position) -> None:
         """Show context menu for pending songs."""
+        # Close any existing menu first
+        if self._active_menu:
+            self._active_menu.close()
+            self._active_menu = None
+        
         item = self.pending_tree.itemAt(position)
         if not item:
             return
         
         menu = QMenu(self.parent)
-        menu.setStyleSheet("""
-            QMenu {
-                background-color: #1e1e1e;
+        self._active_menu = menu
+        c = getattr(self.parent, "theme_colors", None) or {}
+        is_dark = SettingsManager.theme == "dark"
+        menu_bg = c.get("bg_primary", "#1e1e1e" if is_dark else "#ffffff")
+        menu_text = c.get("text", "#cccccc" if is_dark else "#3b3b3b")
+        menu_border = c.get("border", "#454545" if is_dark else "#e5e5e5")
+        menu_accent = c.get("button", "#0e639c" if is_dark else "#007acc")
+        menu.setStyleSheet(f"""
+            QMenu {{
+                background-color: {menu_bg};
+                color: {menu_text};
+                border: 1px solid {menu_border};
+            }}
+            QMenu::item:selected {{
+                background-color: {menu_accent};
                 color: #ffffff;
-            }
-            QMenu::item:selected {
-                background-color: #0d47a1;
-            }
+            }}
         """)
+        
+        # Play (with system default)
+        action = menu.addAction("▶️ Play")
+        action.triggered.connect(lambda: self._on_pending_play_song(item, 0))
+        
+        # Play With (submenu)
+        available_players = get_available_players()
+        if available_players:
+            play_with_menu = menu.addMenu("▶️ Play With")
+            for player_name, player_path in available_players:
+                action = play_with_menu.addAction(player_name)
+                action.triggered.connect(lambda checked=False, p=player_path: self._pending_play_with_player(item, p))
+            
+            play_with_menu.addSeparator()
+            action = play_with_menu.addAction("Custom Player...")
+            action.triggered.connect(lambda: self._pending_play_with_custom_player(item))
+        
+        menu.addSeparator()
         
         edit_action = menu.addAction("✏️ Edit")
         edit_action.triggered.connect(lambda: self._load_pending_entry(item))
@@ -1386,4 +1461,104 @@ class SongEditorManager:
             tags.delall("APIC")
             tags.add(APIC(encoding=3, mime="image/jpeg", type=3, desc="", data=cover_bytes))
 
-        tags.save(path, v2_version=4)
+        tags.save(path, v2_version=4)    
+    def update_theme(self, theme_colors: dict, is_dark: bool):
+        """Update song editor components with current theme colors."""
+        c = theme_colors
+        
+        # Update textboxes (metadata fields) with proper light theme colors
+        field_bg = c['bg_primary']
+        field_border = c['border']
+        field_text = c['text']
+        field_focus = c['button']
+        
+        text_style = f"""
+            QLineEdit {{
+                background-color: {field_bg};
+                color: {field_text};
+                border: 1px solid {field_border};
+                padding: 4px;
+                border-radius: 3px;
+            }}
+            QLineEdit:focus {{ border: 2px solid {field_focus}; }}
+        """
+        
+        # Update JSON fields
+        for field_widget in self.json_fields.values():
+            if hasattr(field_widget, 'setStyleSheet'):
+                field_widget.setStyleSheet(text_style)
+        
+        # Update ID3 fields
+        for field_widget in self.id3_fields.values():
+            if hasattr(field_widget, 'setStyleSheet'):
+                field_widget.setStyleSheet(text_style)
+        
+        # Update pending tree
+        if hasattr(self, 'pending_tree') and self.pending_tree:
+            hover_color = '#2a2d2e' if is_dark else '#f0f0f0'
+            header_bg = '#252526' if is_dark else '#f3f3f3'
+            border_light = '#454545' if is_dark else '#d4d4d4'
+            
+            self.pending_tree.setStyleSheet(f"""
+                QTreeWidget {{
+                    background-color: {c['bg_primary']};
+                    color: {c['text']};
+                    border: 1px solid {c['border']};
+                    gridline-color: {c['border']};
+                }}
+                QTreeWidget::item {{
+                    border-right: 1px solid {c['border']};
+                    padding: 2px;
+                }}
+                QTreeWidget::item:selected {{ background-color: {c['button']}; color: #ffffff; }}
+                QHeaderView::section {{
+                    background-color: {header_bg};
+                    color: {c['text']};
+                    padding: 4px;
+                    border: none;
+                    border-right: 1px solid {border_light};
+                    border-bottom: 1px solid {border_light};
+                }}
+            """)
+        
+        # Update preset combo in song edit
+        if hasattr(self, 'preset_combo') and self.preset_combo:
+            dropdown_bg = '#2d2d30' if is_dark else '#ffffff'
+            self.preset_combo.setStyleSheet(f"""
+                QComboBox {{
+                    background-color: {c['bg_primary']};
+                    color: {c['text']};
+                    border: 1px solid {c['border']};
+                    border-radius: 4px;
+                    padding: 4px;
+                    padding-right: 20px;
+                }}
+                QComboBox::drop-down {{
+                    border: none;
+                    width: 20px;
+                }}
+                QComboBox QAbstractItemView {{
+                    background-color: {dropdown_bg};
+                    color: {c['text']};
+                    selection-background-color: {c['button']};
+                    selection-color: #ffffff;
+                }}
+            """)
+        
+        # Update save all button
+        if hasattr(self, 'save_all_btn'):
+            button_hover = '#094771' if is_dark else '#33a3dc'
+            for btn in [self.save_all_btn] if hasattr(self, 'save_all_btn') else []:
+                if btn:
+                    btn.setStyleSheet(f"""
+                        QPushButton {{
+                            background-color: {c['button']};
+                            color: white;
+                            border: none;
+                            border-radius: 3px;
+                            padding: 6px;
+                        }}
+                        QPushButton:hover {{
+                            background-color: {button_hover};
+                        }}
+                    """)

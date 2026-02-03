@@ -20,6 +20,13 @@ class RulesPanelManager:
         self.parent = parent
         self.preset_manager = preset_manager
 
+    def _apply_rule_row_theme(self, rule_row: RuleRow) -> None:
+        if not rule_row:
+            return
+        if hasattr(self.parent, "theme_colors") and self.parent.theme_colors:
+            is_dark = SettingsManager.theme == "dark"
+            rule_row.update_theme(self.parent.theme_colors, is_dark)
+
     def create_rules_tab(self):
         """Create rules and presets tab with rule builder."""
         frame = QFrame()
@@ -34,27 +41,8 @@ class RulesPanelManager:
 
         # Rule Tabs for Title/Artist/Album
         rule_tabs = QTabWidget()
-        rule_tabs.setStyleSheet("""
-            QTabWidget::pane {
-                border: 1px solid #3d3d3d;
-                background-color: #1e1e1e;
-            }
-            QTabBar::tab {
-                background-color: #2d2d2d;
-                color: #ffffff;
-                padding: 8px 16px;
-                margin-right: 2px;
-                border: 1px solid #3d3d3d;
-                border-bottom: none;
-            }
-            QTabBar::tab:selected {
-                background-color: #0d47a1;
-                border-color: #0d47a1;
-            }
-            QTabBar::tab:hover:!selected {
-                background-color: #3d3d3d;
-            }
-        """)
+        self.rule_tabs = rule_tabs  # Store reference for theme updates
+        # Stylesheet will be set by update_theme
 
         # Create tabs for Title, Artist, Album
         for tab_name in ["Title", "Artist", "Album"]:
@@ -109,12 +97,13 @@ class RulesPanelManager:
             rule_layout = QVBoxLayout(rule_container)
             rule_layout.setContentsMargins(4, 4, 4, 4)
             rule_layout.setSpacing(4)
-            rule_layout.addStretch()
+            rule_layout.addStretch(0)  # Don't stretch between rules
+            rule_layout.addStretch(1)  # Stretch after rules
 
             scroll.setWidget(rule_container)
             scroll.setMinimumHeight(150)
-            scroll.setMaximumHeight(300)
-            tab_layout.addWidget(scroll)
+            # Remove max height to allow expansion
+            tab_layout.addWidget(scroll, 1)  # Stretch to fill available space
 
             rule_tabs.addTab(tab_widget, tab_name)
             self.parent.rule_containers[tab_name.lower()] = rule_container
@@ -172,13 +161,9 @@ class RulesPanelManager:
         # Cover image with hover button
         cover_container = QFrame()
         cover_container.setFixedSize(180, 180)
-        cover_container.setStyleSheet("""
-            QFrame {
-                background-color: #1e1e1e;
-                border: 1px solid #3d3d3d;
-                border-radius: 4px;
-            }
-        """)
+        # Store reference for theme updates
+        self.parent.cover_container = cover_container
+        # Stylesheet will be set by _refresh_theme_colors()
         cover_layout = QVBoxLayout(cover_container)
         cover_layout.setContentsMargins(0, 0, 0, 0)
 
@@ -448,6 +433,7 @@ class RulesPanelManager:
         rule_row.move_up_requested.connect(self.move_rule_up)
         rule_row.move_down_requested.connect(self.move_rule_down)
         rule_row.rule_changed.connect(self.update_output_preview)
+        self._apply_rule_row_theme(rule_row)
 
         layout.insertWidget(layout.count() - 1, rule_row)
         self.update_rule_button_states(container)
@@ -485,6 +471,7 @@ class RulesPanelManager:
                 new_prev.move_up_requested.connect(self.move_rule_up)
                 new_prev.move_down_requested.connect(self.move_rule_down)
                 new_prev.rule_changed.connect(self.update_output_preview)
+                self._apply_rule_row_theme(new_prev)
 
                 new_current = RuleRow(self.parent.RULE_OPS)
                 new_current.set_rule_data(prev_data)
@@ -492,6 +479,7 @@ class RulesPanelManager:
                 new_current.move_up_requested.connect(self.move_rule_up)
                 new_current.move_down_requested.connect(self.move_rule_down)
                 new_current.rule_changed.connect(self.update_output_preview)
+                self._apply_rule_row_theme(new_current)
 
                 layout.insertWidget(index - 1, new_prev)
                 layout.insertWidget(index, new_current)
@@ -524,6 +512,7 @@ class RulesPanelManager:
                 new_current.move_up_requested.connect(self.move_rule_up)
                 new_current.move_down_requested.connect(self.move_rule_down)
                 new_current.rule_changed.connect(self.update_output_preview)
+                self._apply_rule_row_theme(new_current)
 
                 new_next = RuleRow(self.parent.RULE_OPS)
                 new_next.set_rule_data(current_data)
@@ -531,6 +520,7 @@ class RulesPanelManager:
                 new_next.move_up_requested.connect(self.move_rule_up)
                 new_next.move_down_requested.connect(self.move_rule_down)
                 new_next.rule_changed.connect(self.update_output_preview)
+                self._apply_rule_row_theme(new_next)
 
                 layout.insertWidget(index, new_current)
                 layout.insertWidget(index + 1, new_next)
@@ -591,6 +581,7 @@ class RulesPanelManager:
             rule_row.move_up_requested.connect(self.move_rule_up)
             rule_row.move_down_requested.connect(self.move_rule_down)
             rule_row.rule_changed.connect(self.update_output_preview)
+            self._apply_rule_row_theme(rule_row)
 
             layout.insertWidget(idx, rule_row)
             rule_row.show()
@@ -609,4 +600,137 @@ class RulesPanelManager:
         if self.parent.current_selected_file is None or self.parent.current_selected_file >= len(self.parent.song_files):
             return
 
-        self.parent.update_preview_info()
+        self.parent.update_preview_info()    
+    def update_theme(self, theme_colors: dict, is_dark: bool):
+        """Update rules panel with current theme colors."""
+        c = theme_colors
+        
+        # Update rule tabs styling
+        if hasattr(self, 'rule_tabs'):
+            if is_dark:
+                tab_style = f"""
+                    QTabWidget::pane {{
+                        border: 1px solid {c['border']};
+                        background-color: {c['bg_primary']};
+                    }}
+                    QTabBar::tab {{
+                        background-color: {c['bg_tertiary']};
+                        color: {c['text']};
+                        padding: 8px 16px;
+                        margin-right: 2px;
+                        border: 1px solid {c['border']};
+                        border-bottom: none;
+                    }}
+                    QTabBar::tab:selected {{
+                        background-color: {c['button']};
+                        color: #ffffff;
+                    }}
+                    QTabBar::tab:hover:!selected {{
+                        background-color: {c['bg_secondary']};
+                    }}
+                """
+            else:
+                tab_style = f"""
+                    QTabWidget::pane {{
+                        border: 1px solid {c['border']};
+                        background-color: {c['bg_primary']};
+                    }}
+                    QTabBar::tab {{
+                        background-color: #e8e8e8;
+                        color: {c['text']};
+                        padding: 8px 16px;
+                        margin-right: 2px;
+                        border: 1px solid {c['border']};
+                        border-bottom: none;
+                    }}
+                    QTabBar::tab:selected {{
+                        background-color: {c['button']};
+                        color: #ffffff;
+                        border-bottom: 1px solid {c['button']};
+                    }}
+                    QTabBar::tab:hover:!selected {{
+                        background-color: #dcdcdc;
+                    }}
+                """
+            for attr_name in ['rule_tabs']:
+                if hasattr(self, attr_name):
+                    getattr(self, attr_name).setStyleSheet(tab_style)
+        
+        # Update JSON editor
+        if hasattr(self.parent, 'json_editor') and self.parent.json_editor:
+            self.parent.json_editor.setStyleSheet(f"""
+                QTextEdit {{
+                    background-color: {c['bg_primary']};
+                    color: {c['text']};
+                    border: 1px solid {c['border']};
+                    border-radius: 4px;
+                    font-family: 'Courier New', monospace;
+                    font-size: 10pt;
+                }}
+            """)
+        
+        # Update buttons - Add Rule, Clear Rules, etc
+        button_hover = '#094771' if is_dark else '#33a3dc'
+        button_disabled_bg = '#555555' if is_dark else '#e5e5e5'
+        button_disabled_text = '#aaaaaa' if is_dark else '#999999'
+        
+        button_style = f"""
+            QPushButton {{
+                background-color: {c['button']};
+                color: white;
+                border: none;
+                border-radius: 3px;
+                padding: 6px;
+            }}
+            QPushButton:hover {{
+                background-color: {button_hover};
+            }}
+        """
+        
+        disabled_button_style = f"""
+            QPushButton {{
+                background-color: {button_disabled_bg};
+                color: {button_disabled_text};
+                border: none;
+                border-radius: 3px;
+                padding: 4px;
+            }}
+            QPushButton:enabled {{
+                background-color: {c['button']};
+                color: white;
+            }}
+            QPushButton:enabled:hover {{
+                background-color: {button_hover};
+            }}
+        """
+        
+        # Update save JSON and save filename buttons
+        if hasattr(self.parent, 'save_json_btn') and self.parent.save_json_btn:
+            self.parent.save_json_btn.setStyleSheet(disabled_button_style)
+        
+        if hasattr(self.parent, 'save_filename_btn') and self.parent.save_filename_btn:
+            self.parent.save_filename_btn.setStyleSheet(disabled_button_style)
+        
+        # Apply to any buttons we can find
+        if hasattr(self.parent, 'tabs'):
+            for i in range(self.parent.tabs.count()):
+                widget = self.parent.tabs.widget(i)
+                if widget:
+                    # Find all QPushButtons in the widget
+                    buttons = widget.findChildren(QPushButton)
+                    for btn in buttons:
+                        if any(text in btn.text() for text in ['Add Rule', 'Clear Rules', 'Apply']):
+                            btn.setStyleSheet(button_style)        
+        # Update all rule rows
+        if hasattr(self.parent, 'rule_containers'):
+            for tab_name in ['title', 'artist', 'album']:
+                container = self.parent.rule_containers.get(tab_name)
+                if container:
+                    layout = container.layout()
+                    if layout:
+                        for i in range(layout.count()):
+                            item = layout.itemAt(i)
+                            if item:
+                                widget = item.widget()
+                                if widget and hasattr(widget, 'update_theme'):
+                                    widget.update_theme(theme_colors, is_dark)

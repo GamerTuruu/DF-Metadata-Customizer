@@ -16,7 +16,7 @@ class MetadataFields(StrEnum):
     DATE = "Date"
     COMMENT = "Comment"
     SPECIAL = "Special"
-    FILE = "file"
+    FILE = "Filename"
 
     # UI keys
     UI_TITLE = "title"
