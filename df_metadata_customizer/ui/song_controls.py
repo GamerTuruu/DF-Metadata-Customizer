@@ -49,7 +49,7 @@ def create_song_controls(parent):
     
     # Advanced search
     search_input = QLineEdit()
-    search_input.setPlaceholderText('Search (artist="Lady Gaga", version>2, title!=Creep, track>=69)...')
+    search_input.setPlaceholderText('Search: title="Song" (exact), artist=Lady, version>2, title!=Creep, track>=69...')
     search_input.setFixedHeight(36)
     search_input.setStyleSheet("""
         QLineEdit {

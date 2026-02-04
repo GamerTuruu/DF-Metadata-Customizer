@@ -799,14 +799,34 @@ class MainWindow(QMainWindow):
                     return float('nan')
             return float('nan')
     
-    def _parse_search_value(self, value_str: str) -> str:
-        """Parse search value, handling quoted strings."""
+    def _parse_search_value(self, value_str: str) -> tuple[str, bool]:
+        """Parse search value, handling quoted strings.
+        
+        Returns:
+            tuple: (parsed_value, is_exact_match)
+                - parsed_value: the cleaned search value
+                - is_exact_match: True if quotes were used (indicating exact match wanted)
+        """
         value_str = value_str.strip()
-        # Remove quotes if present
+        # Check if quotes are present (indicates exact match desired)
         if (value_str.startswith('"') and value_str.endswith('"')) or \
            (value_str.startswith("'") and value_str.endswith("'")):
-            return value_str[1:-1].lower()
-        return value_str.lower()
+            return value_str[1:-1].lower(), True
+        return value_str.lower(), False
+
+    def _normalize_version_compare(self, field_value: str, search_value: str) -> bool:
+        """Compare version values, treating integers and floats as equivalent.
+        
+        Examples: "1" == "1.0", "2" == "2.0", etc.
+        """
+        try:
+            # Convert both to float for comparison
+            field_float = float(field_value)
+            search_float = float(search_value)
+            return field_float == search_float
+        except (ValueError, TypeError):
+            # Fallback to string comparison if not numeric
+            return str(field_value).lower() == str(search_value).lower()
 
     def _is_latest_version_match(self, file_data: dict, want_latest: bool) -> bool:
         """Return True if file_data matches latest/not-latest version for its song ID."""
@@ -843,7 +863,7 @@ class MainWindow(QMainWindow):
                     parts = query.split("!=", 1)
                     if len(parts) == 2:
                         search_field = parts[0].strip().lower()
-                        search_value = self._parse_search_value(parts[1])
+                        search_value, is_exact = self._parse_search_value(parts[1])
 
                         if search_field == "version" and search_value in {"latest", "not latest", "not_latest", "notlatest"}:
                             want_latest = (search_value == "latest")
@@ -851,16 +871,22 @@ class MainWindow(QMainWindow):
                         else:
                             for key, value in file_data.items():
                                 if search_field in key.lower():
-                                    if str(value).lower() != search_value:
-                                        match = True
-                                        break
+                                    # Special handling for version field to treat 1 == 1.0
+                                    if key.lower() == "version":
+                                        if not self._normalize_version_compare(str(value), search_value):
+                                            match = True
+                                            break
+                                    else:
+                                        if str(value).lower() != search_value:
+                                            match = True
+                                            break
                 
                 elif "==" in query:
-                    # Exact match
+                    # Exact match (or quoted with =)
                     parts = query.split("==", 1)
                     if len(parts) == 2:
                         search_field = parts[0].strip().lower()
-                        search_value = self._parse_search_value(parts[1])
+                        search_value, is_exact = self._parse_search_value(parts[1])
 
                         if search_field == "version" and search_value in {"latest", "not latest", "not_latest", "notlatest"}:
                             want_latest = (search_value == "latest")
@@ -868,9 +894,15 @@ class MainWindow(QMainWindow):
                         else:
                             for key, value in file_data.items():
                                 if search_field in key.lower():
-                                    if str(value).lower() == search_value:
-                                        match = True
-                                        break
+                                    # Special handling for version field to treat 1 == 1.0
+                                    if key.lower() == "version":
+                                        if self._normalize_version_compare(str(value), search_value):
+                                            match = True
+                                            break
+                                    else:
+                                        if str(value).lower() == search_value:
+                                            match = True
+                                            break
                 
                 elif ">=" in query:
                     # Greater than or equal
@@ -929,11 +961,11 @@ class MainWindow(QMainWindow):
                                     pass
                 
                 elif "=" in query:
-                    # Contains match
+                    # Contains match (or exact match if quoted)
                     parts = query.split("=", 1)
                     if len(parts) == 2:
                         search_field = parts[0].strip().lower()
-                        search_value = self._parse_search_value(parts[1])
+                        search_value, is_exact = self._parse_search_value(parts[1])
 
                         if search_field == "version" and search_value in {"latest", "not latest", "not_latest", "notlatest"}:
                             want_latest = (search_value == "latest")
@@ -941,9 +973,22 @@ class MainWindow(QMainWindow):
                         else:
                             for key, value in file_data.items():
                                 if search_field in key.lower():
-                                    if search_value in str(value).lower():
-                                        match = True
-                                        break
+                                    value_lower = str(value).lower()
+                                    # Special handling for version field to treat 1 == 1.0
+                                    if key.lower() == "version":
+                                        if self._normalize_version_compare(str(value), search_value):
+                                            match = True
+                                            break
+                                    elif is_exact:
+                                        # If quoted, do exact match
+                                        if value_lower == search_value:
+                                            match = True
+                                            break
+                                    else:
+                                        # Otherwise do contains match
+                                        if search_value in value_lower:
+                                            match = True
+                                            break
                 
                 else:
                     # Simple text search across multiple fields
