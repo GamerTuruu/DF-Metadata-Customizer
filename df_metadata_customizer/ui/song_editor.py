@@ -1004,8 +1004,12 @@ class SongEditorManager:
                 source_path = entry.get("source_path", "")
                 if source_path and Path(source_path).exists():
                     try:
-                        from df_metadata_customizer.ui.platform_utils import open_file_with_default_app
-                        open_file_with_default_app(source_path)
+                        # Use default_player if set, otherwise use system default
+                        if SettingsManager.default_player:
+                            open_file_with_player(source_path, SettingsManager.default_player)
+                        else:
+                            from df_metadata_customizer.ui.platform_utils import open_file_with_default_app
+                            open_file_with_default_app(source_path)
                     except Exception as e:
                         QMessageBox.warning(self.parent, "Error", f"Cannot play file: {e}")
                 return
@@ -1019,9 +1023,6 @@ class SongEditorManager:
                 if source_path and Path(source_path).exists():
                     try:
                         open_file_with_player(source_path, player_path)
-                        # Set as default player
-                        SettingsManager.default_player = player_path
-                        SettingsManager.save_settings()
                     except Exception as e:
                         QMessageBox.warning(self.parent, "Error", f"Cannot play file: {e}")
                 return
@@ -1078,9 +1079,17 @@ class SongEditorManager:
                     if source_path and Path(source_path).exists():
                         try:
                             open_file_with_player(source_path, player_path)
-                            # Set as default player
-                            SettingsManager.default_player = player_path
-                            SettingsManager.save_settings()
+                            # Ask if user wants to set as default
+                            reply = QMessageBox.question(
+                                self.parent,
+                                "Set as Default Player?",
+                                f"Do you want to set this as your default player?\n\nPlayer: {player_path}",
+                                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                                QMessageBox.StandardButton.Yes
+                            )
+                            if reply == QMessageBox.StandardButton.Yes:
+                                SettingsManager.default_player = player_path
+                                SettingsManager.save_settings()
                         except Exception as e:
                             QMessageBox.warning(self.parent, "Error", f"Cannot play file: {e}")
                     return
@@ -1144,8 +1153,34 @@ class SongEditorManager:
         
         # Play With (submenu)
         available_players = get_available_players()
-        if available_players:
+        if available_players or SettingsManager.default_player:
             play_with_menu = menu.addMenu("▶️ Play With")
+            
+            # Check if default player is in available list
+            available_paths = [p[1] for p in available_players]
+            has_custom_default = (
+                SettingsManager.default_player and 
+                SettingsManager.default_player not in available_paths
+            )
+            
+            # Add custom player at top if it's the default and not in list
+            if has_custom_default:
+                player_name = Path(SettingsManager.default_player).name
+                player_submenu = play_with_menu.addMenu(f"✓ {player_name} (Custom)")
+                
+                # Play action
+                action = player_submenu.addAction("▶️ Play")
+                action.triggered.connect(
+                    lambda checked=False, p=SettingsManager.default_player: 
+                    self._pending_play_with_player(item, p)
+                )
+                
+                # Set as default action (already is default)
+                action = player_submenu.addAction("⭐ Set as Default")
+                action.setEnabled(False)  # Already default
+                
+                play_with_menu.addSeparator()
+            
             for player_name, player_path in available_players:
                 # Create submenu for each player with options
                 player_submenu = play_with_menu.addMenu(player_name)
