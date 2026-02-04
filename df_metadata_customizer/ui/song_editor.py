@@ -36,11 +36,10 @@ from df_metadata_customizer.core.metadata import MetadataFields
 from df_metadata_customizer.core.settings_manager import SettingsManager
 from df_metadata_customizer.core.song_utils import extract_json_from_song, get_id3_tags, get_cover_art
 from df_metadata_customizer.core.preset_service import PresetService
+from df_metadata_customizer.core.remuxer import remux_song
+from df_metadata_customizer.core.audio_hash import get_audio_hash
 from df_metadata_customizer.ui.rule_widgets import NoScrollComboBox
 from df_metadata_customizer.ui.platform_utils import open_file_with_player, get_available_players
-
-from remuxer import remux_song
-from hash_mutagen import get_audio_hash
 
 
 ALBUM_ARTIST = "QueenPb + vedal987"
