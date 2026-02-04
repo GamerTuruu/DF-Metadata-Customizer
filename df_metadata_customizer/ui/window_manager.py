@@ -4,13 +4,14 @@ import logging
 from typing import Optional
 from PySide6.QtWidgets import (
     QMessageBox, QDialog, QVBoxLayout, QHBoxLayout, QLabel, 
-    QComboBox, QCheckBox, QDoubleSpinBox, QPushButton, QScrollArea, 
+    QCheckBox, QDoubleSpinBox, QPushButton, QScrollArea, 
     QFrame, QInputDialog
 )
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QIcon, QFont
 
 from df_metadata_customizer.core import SettingsManager
+from df_metadata_customizer.ui.rule_widgets import NoScrollComboBox
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +69,7 @@ class WindowManager:
         # Theme preference
         theme_layout = QHBoxLayout()
         theme_layout.addWidget(QLabel("Theme:"))
-        theme_combo = QComboBox()
+        theme_combo = NoScrollComboBox()
         theme_combo.addItems(["Light", "Dark", "System"])
         current_theme = SettingsManager.get_theme("System")
         theme_combo.setCurrentText(current_theme)

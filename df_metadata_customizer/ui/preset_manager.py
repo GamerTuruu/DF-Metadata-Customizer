@@ -83,8 +83,19 @@ class PresetManager:
                 }}
                 QComboBox::drop-down {{
                     border: none;
-                    width: 20px;
+                    width: 16px;
                     background-color: transparent;
+                    margin-right: 2px;
+                }}
+                QComboBox::down-arrow {{
+                    width: 12px;
+                    height: 8px;
+                }}
+                QComboBox QAbstractItemView {{
+                    background-color: {dropdown_bg};
+                    color: {c['text']};
+                    selection-background-color: {c['button']};
+                    selection-color: #ffffff;
                 }}
                 QComboBox QAbstractItemView {{
                     background-color: {dropdown_bg};

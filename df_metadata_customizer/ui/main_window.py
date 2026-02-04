@@ -1216,7 +1216,7 @@ By Artist:
         theme_label.setStyleSheet("font-weight: bold; font-size: 11pt;")
         theme_layout.addWidget(theme_label)
 
-        theme_combo = QComboBox()
+        theme_combo = NoScrollComboBox()
         theme_combo.addItems(["System", "Dark", "Light"])
         # Get current theme and normalize capitalization
         current_theme = SettingsManager.theme or "system"

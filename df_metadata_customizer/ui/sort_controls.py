@@ -303,12 +303,21 @@ class SortControlsManager:
                 border: 1px solid {c['border']};
                 border-radius: 3px;
                 padding: 4px;
-                padding-right: 18px;
+                padding-right: 20px;
             }}
             QComboBox::drop-down {{
                 border: none;
-                width: 18px;
+                width: 20px;
                 background-color: transparent;
+            }}
+            QComboBox::down-arrow {{
+                image: none;  /* We draw the arrow manually in paintEvent */
+            }}
+            QComboBox QAbstractItemView {{
+                background-color: {dropdown_bg};
+                color: {c['text']};
+                selection-background-color: {c['button']};
+                selection-color: #ffffff;
             }}
             QComboBox QAbstractItemView {{
                 background-color: {dropdown_bg};

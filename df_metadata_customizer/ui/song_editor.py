@@ -521,6 +521,15 @@ class SongEditorManager:
                 border: 1px solid #3d3d3d;
                 border-radius: 4px;
                 padding: 4px;
+                padding-right: 20px;
+            }
+            QComboBox::drop-down {
+                border: none;
+                width: 20px;
+                background-color: transparent;
+            }
+            QComboBox::down-arrow {
+                image: none;  /* We draw the arrow manually in paintEvent */
             }
         """)
         self._load_presets()
@@ -1595,6 +1604,10 @@ class SongEditorManager:
                 QComboBox::drop-down {{
                     border: none;
                     width: 20px;
+                    background-color: transparent;
+                }}
+                QComboBox::down-arrow {{
+                    image: none;  /* We draw the arrow manually in paintEvent */
                 }}
                 QComboBox QAbstractItemView {{
                     background-color: {dropdown_bg};

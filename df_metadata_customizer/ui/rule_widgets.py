@@ -4,17 +4,55 @@ from PySide6.QtWidgets import (
     QWidget, QHBoxLayout, QVBoxLayout, QLabel, QComboBox, 
     QLineEdit, QPushButton, QFrame
 )
-from PySide6.QtCore import Qt, Signal, QEvent
+from PySide6.QtCore import Qt, Signal, QEvent, QPoint
+from PySide6.QtGui import QPainter, QPolygon, QColor
 from df_metadata_customizer.core.metadata import MetadataFields
 from df_metadata_customizer.core.settings_manager import SettingsManager
 
 
 class NoScrollComboBox(QComboBox):
-    """ComboBox that ignores mouse wheel events."""
+    """ComboBox that ignores mouse wheel events and draws a custom arrow."""
     
     def wheelEvent(self, event):
         """Ignore wheel events to prevent accidental changes."""
         event.ignore()
+    
+    def paintEvent(self, event):
+        """Custom paint event to draw arrow."""
+        super().paintEvent(event)
+        
+        # Draw custom arrow
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        
+        # Get the settings manager for theme colors
+        try:
+            settings = SettingsManager()
+            theme = settings.get_theme()
+            if theme == "dark":
+                arrow_color = QColor("#ffffff")
+            elif theme == "light":
+                arrow_color = QColor("#000000")
+            else:  # system
+                arrow_color = QColor("#ffffff")  # default to white
+        except:
+            arrow_color = QColor("#ffffff")  # fallback
+        
+        # Arrow position (right side of the combobox)
+        arrow_x = self.width() - 12
+        arrow_y = self.height() // 2
+        
+        # Create triangle points (pointing down)
+        points = QPolygon([
+            QPoint(arrow_x - 4, arrow_y - 2),
+            QPoint(arrow_x + 4, arrow_y - 2),
+            QPoint(arrow_x, arrow_y + 3)
+        ])
+        
+        painter.setBrush(arrow_color)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.drawPolygon(points)
+        painter.end()
 
 
 class RuleRow(QFrame):
@@ -37,7 +75,7 @@ class RuleRow(QFrame):
         # Logic selector (AND/OR)s
         self.logic_combo = NoScrollComboBox()
         self.logic_combo.addItems(["AND", "OR"])
-        self.logic_combo.setFixedWidth(55)
+        self.logic_combo.setFixedWidth(65)
         self.logic_combo.currentTextChanged.connect(self.rule_changed.emit)
         layout.addWidget(self.logic_combo)
         
@@ -189,12 +227,21 @@ class RuleRow(QFrame):
                 border: 1px solid {c['border']};
                 border-radius: 3px;
                 padding: 4px;
-                padding-right: 18px;
+                padding-right: 20px;
             }}
             QComboBox::drop-down {{
                 border: none;
-                width: 18px;
+                width: 20px;
                 background-color: transparent;
+            }}
+            QComboBox::down-arrow {{
+                image: none;  /* We draw the arrow manually in paintEvent */
+            }}
+            QComboBox QAbstractItemView {{
+                background-color: {dropdown_bg};
+                color: {c['text']};
+                selection-background-color: {c['button']};
+                selection-color: #ffffff;
             }}
             QComboBox QAbstractItemView {{
                 background-color: {dropdown_bg};
