@@ -1195,12 +1195,24 @@ By Artist:
     
     def show_about(self):
         """About."""
-        QMessageBox.information(self, "About",
-            "Database Formatter v2.0\n"
-            "MP3 Metadata Customizer\n\n"
-            "✓ REST API\n"
-            "✓ CLI Commands\n"
-            "✓ PySide6 GUI")
+        QMessageBox.information(
+            self,
+            "About DF Metadata Customizer",
+            "DF Metadata Customizer v2.0.0\n"
+            "MP3 Metadata Editor\n\n"
+            "A powerful tool for managing cover song collections with:\n"
+            "• Rule-based metadata editing\n"
+            "• Multi-level sorting (up to 5 fields)\n"
+            "• Advanced search with filters\n"
+            "• JSON metadata support\n"
+            "• Direct song playback\n"
+            "• Cover art management\n"
+            "• Batch processing\n\n"
+            "Built with PySide6 (Qt6) for modern UI\n"
+            "Created for the Neuro-sama fan community\n\n"
+            "Licensed under MIT License\n"
+            "GitHub: github.com/gamerturuu/df-metadata-customizer"
+        )
     
     def show_preferences(self):
         """Show preferences dialog."""
