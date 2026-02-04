@@ -37,18 +37,44 @@ A powerful metadata management tool designed specifically for Neuro-sama and Evi
 - 💾 **Preset System** - Save and load rule configurations
 - 🚀 **Batch Processing** - Apply changes to multiple files
 - 📊 **Advanced Statistics** - Categorize songs by artist type (Neuro Solo, Evil Solo, Duets, Other)
-- 🔢 **Multi-Level Sorting** - Sort by up to 5 different fields with ascending/descending options
+- 🔢 **Multi-Level Sorting** - Sort by up to 5 different fields with ascending/descending options (collapsible UI)
 - ▶️ **Direct Playback** - Double-click to play songs in your default player
 - 📝 **JSON Editor** - Edit JSON metadata directly in the app with validation
 - ✏️ **File Renaming** - Rename MP3 files directly from the interface
 - 🔍 **Enhanced Search** - Version=latest filter and improved search operators
 - 🖱️ **Click-Outside Dismiss** - Close popup dialogs by clicking outside them (Wayland/X11 compatible)
+- 🎨 **Modern Theming** - VS Code-inspired dark/light themes with consistent color palette
+- 🔄 **Audio Content Hashing** - Compare raw audio data to detect duplicates regardless of metadata
 
 ## Installation
 
+### For End Users
 1. Download the latest release from the [Releases page](https://github.com/gamerturuu/df-metadata-customizer/releases)
-2. Unzip the folder and run the `.exe` file
-3. Open the folder to your songs folder
+2. Extract the archive
+3. Run the executable:
+   - Windows: `DFMetadataCustomizer.exe`
+   - Linux: `DFMetadataCustomizer`
+   - macOS: `DFMetadataCustomizer`
+4. Click "Select Folder" to open your songs folder
+
+### For Developers
+```bash
+# Install uv (recommended)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Clone repository
+git clone https://github.com/gamerturuu/df-metadata-customizer.git
+cd df-metadata-customizer
+
+# Install dependencies
+uv sync
+
+# Run the application
+uv run python -m df_metadata_customizer
+
+# Build executable
+uv run pyinstaller DFMetadataCustomizer.spec
+```
 
 ## Neuro-sama / Evil Neuro Use Case
 
@@ -178,10 +204,19 @@ The app expects MP3 files to contain JSON in their comment field (example):
 
 ## 🔧 Technical Details
 
-- Python 3.10+
-- customtkinter
-- Pillow (PIL)
-- mutagen
+### Requirements
+- Python 3.10 - 3.14
+- PySide6 (Qt6) - Modern cross-platform UI framework
+- mutagen - MP3 metadata handling
+- Pillow (PIL) - Image processing for cover art
+- polars - Fast data processing
+- xxhash - Audio content hashing
+
+### UI Framework
+- Built with **PySide6/Qt6** for native performance
+- VS Code-inspired dark/light themes
+- Fully responsive layout with modern styling
+- Wayland and X11 compatible
 
 ## 🙏 Acknowledgments
 

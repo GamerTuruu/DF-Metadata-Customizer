@@ -45,10 +45,21 @@ class WindowManager:
         """Show about dialog."""
         QMessageBox.information(
             self.window,
-            "About Database Formatter",
-            "Database Formatter v2.0\n"
-            "MP3 Metadata Customizer\n\n"
-            "Organize, manage, and customize metadata for your music library."
+            "About DF Metadata Customizer",
+            "DF Metadata Customizer v2.0.0\n"
+            "MP3 Metadata Editor\n\n"
+            "A powerful tool for managing cover song collections with:\n"
+            "• Rule-based metadata editing\n"
+            "• Multi-level sorting (up to 5 fields)\n"
+            "• Advanced search with filters\n"
+            "• JSON metadata support\n"
+            "• Direct song playback\n"
+            "• Cover art management\n"
+            "• Batch processing\n\n"
+            "Built with PySide6 (Qt6) for modern UI\n"
+            "Created for the Neuro-sama fan community\n\n"
+            "Licensed under MIT License\n"
+            "GitHub: github.com/gamerturuu/df-metadata-customizer"
         )
     
     def show_preferences(self):
