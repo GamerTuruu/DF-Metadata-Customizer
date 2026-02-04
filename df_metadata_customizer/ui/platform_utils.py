@@ -132,36 +132,89 @@ def open_folder_with_file_manager(folder_path: str, file_to_select: str = None) 
             abs_file_path = str(Path(file_to_select).resolve())
             if system == "Darwin":  # macOS
                 # Use 'open -R' to reveal file in Finder
-                subprocess.Popen(["open", "-R", abs_file_path], stdout=subprocess.DEVNULL, 
-                               stderr=subprocess.DEVNULL, close_fds=True)
+                subprocess.Popen(["open", "-R", abs_file_path], 
+                               stdout=subprocess.DEVNULL, 
+                               stderr=subprocess.DEVNULL, 
+                               close_fds=True)
             elif system == "Windows":
                 # Use explorer with /select to highlight file
-                subprocess.Popen(["explorer", "/select," + abs_file_path], 
-                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, 
-                               close_fds=True)
+                # Use shell=True and full environment for compiled executables
+                subprocess.Popen(f'explorer /select,"{abs_file_path}"', 
+                               stdout=subprocess.DEVNULL, 
+                               stderr=subprocess.DEVNULL, 
+                               close_fds=True,
+                               shell=True,
+                               env=os.environ.copy())
             else:  # Linux and other Unix-like systems
-                # Try nautilus first, fallback to xdg-open if not available
-                try:
-                    subprocess.Popen(["nautilus", "--select", abs_file_path], 
-                                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, 
-                                   close_fds=True, start_new_session=True)
-                except FileNotFoundError:
-                    # Fallback: just open the folder
+                # Try nautilus first, fallback to other options
+                abs_file_path_safe = abs_file_path.replace('"', '\\"')
+                
+                if shutil.which("nautilus"):
+                    subprocess.Popen(f'nautilus --select "{abs_file_path_safe}"',
+                                   stdout=subprocess.DEVNULL, 
+                                   stderr=subprocess.DEVNULL, 
+                                   close_fds=True, 
+                                   start_new_session=True,
+                                   shell=True,
+                                   env=os.environ.copy())
+                elif shutil.which("nemo"):  # Cinnamon file manager
+                    subprocess.Popen(f'nemo --select "{abs_file_path_safe}"',
+                                   stdout=subprocess.DEVNULL, 
+                                   stderr=subprocess.DEVNULL, 
+                                   close_fds=True, 
+                                   start_new_session=True,
+                                   shell=True,
+                                   env=os.environ.copy())
+                elif shutil.which("dolphin"):  # KDE file manager
+                    subprocess.Popen(f'dolphin --select "{abs_file_path_safe}"',
+                                   stdout=subprocess.DEVNULL, 
+                                   stderr=subprocess.DEVNULL, 
+                                   close_fds=True, 
+                                   start_new_session=True,
+                                   shell=True,
+                                   env=os.environ.copy())
+                elif shutil.which("thunar"):  # XFCE file manager
+                    subprocess.Popen(f'thunar "{Path(abs_file_path).parent}"',
+                                   stdout=subprocess.DEVNULL, 
+                                   stderr=subprocess.DEVNULL, 
+                                   close_fds=True, 
+                                   start_new_session=True,
+                                   shell=True,
+                                   env=os.environ.copy())
+                else:
+                    # Fallback: use xdg-open
                     folder = str(Path(abs_file_path).parent)
-                    subprocess.Popen(["xdg-open", folder], stdout=subprocess.DEVNULL, 
-                                   stderr=subprocess.DEVNULL, close_fds=True, 
-                                   start_new_session=True)
+                    subprocess.Popen(f'xdg-open "{folder}"', 
+                                   stdout=subprocess.DEVNULL, 
+                                   stderr=subprocess.DEVNULL, 
+                                   close_fds=True, 
+                                   start_new_session=True,
+                                   shell=True,
+                                   env=os.environ.copy())
         else:
             # Just open folder
             abs_path = str(Path(folder_path).resolve())
             if system == "Darwin":  # macOS
-                subprocess.Popen(["open", abs_path], stdout=subprocess.DEVNULL, 
-                               stderr=subprocess.DEVNULL, close_fds=True)
+                subprocess.Popen(["open", abs_path], 
+                               stdout=subprocess.DEVNULL, 
+                               stderr=subprocess.DEVNULL, 
+                               close_fds=True)
             elif system == "Windows":
-                os.startfile(abs_path)
+                # Use shell=True and full environment for compiled executables
+                subprocess.Popen(f'explorer "{abs_path}"', 
+                               stdout=subprocess.DEVNULL, 
+                               stderr=subprocess.DEVNULL, 
+                               close_fds=True,
+                               shell=True,
+                               env=os.environ.copy())
             else:  # Linux and other Unix-like systems
-                subprocess.Popen(["xdg-open", abs_path], stdout=subprocess.DEVNULL, 
-                               stderr=subprocess.DEVNULL, close_fds=True, 
-                               start_new_session=True)
+                # Use shell=True for better environment handling in compiled apps
+                subprocess.Popen(f'xdg-open "{abs_path}"',
+                               stdout=subprocess.DEVNULL, 
+                               stderr=subprocess.DEVNULL, 
+                               close_fds=True, 
+                               start_new_session=True,
+                               shell=True,
+                               env=os.environ.copy())
     except Exception as e:
         raise Exception(f"Failed to open folder: {e}")

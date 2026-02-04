@@ -1019,14 +1019,49 @@ class SongEditorManager:
     
     def _pending_play_with_custom_player(self, item: QTreeWidgetItem) -> None:
         """Play pending file with custom player entered by user."""
-        player_path, ok = QInputDialog.getText(
+        from PySide6.QtWidgets import QInputDialog, QFileDialog
+        import platform
+        
+        # Ask if user wants to browse or enter path manually
+        choice, ok = QInputDialog.getItem(
             self.parent,
-            "Custom Player",
-            "Enter player path or command:",
-            text=SettingsManager.default_player or ""
+            "Select Input Method",
+            "How would you like to specify the player?",
+            ["Browse for executable...", "Enter path or command manually..."],
+            0,
+            False
         )
         
-        if ok and player_path:
+        player_path = None
+        
+        if ok and choice:
+            if choice == "Browse for executable...":
+                # Open file browser
+                if platform.system() == "Windows":
+                    file_filter = "Executable Files (*.exe);;All Files (*.*)"
+                else:
+                    file_filter = "All Files (*)"
+                
+                player_path, _ = QFileDialog.getOpenFileName(
+                    self.parent,
+                    "Select Media Player",
+                    "",
+                    file_filter
+                )
+            else:
+                # Manual input
+                player_path, ok2 = QInputDialog.getText(
+                    self.parent,
+                    "Custom Player",
+                    "Enter player path or command:",
+                    text=SettingsManager.default_player or ""
+                )
+                if not ok2:
+                    return
+        else:
+            return
+        
+        if player_path:
             entry_id = item.data(0, Qt.ItemDataRole.UserRole)
             for entry in self.pending_songs:
                 if entry.get("id") == entry_id:
@@ -1040,6 +1075,18 @@ class SongEditorManager:
                         except Exception as e:
                             QMessageBox.warning(self.parent, "Error", f"Cannot play file: {e}")
                     return
+
+    def _set_default_player(self, player_path: str) -> None:
+        """Set the specified player as the default player."""
+        SettingsManager.default_player = player_path
+        SettingsManager.save_settings()
+        # Show a brief notification
+        QMessageBox.information(
+            self.parent,
+            "Default Player Set",
+            f"Default player has been set successfully.",
+            QMessageBox.StandardButton.Ok
+        )
 
     def _on_pending_column_resized(self, logicalIndex: int, oldSize: int, newSize: int) -> None:
         """Save pending column widths when user resizes columns."""
@@ -1091,8 +1138,20 @@ class SongEditorManager:
         if available_players:
             play_with_menu = menu.addMenu("▶️ Play With")
             for player_name, player_path in available_players:
-                action = play_with_menu.addAction(player_name)
+                # Create submenu for each player with options
+                player_submenu = play_with_menu.addMenu(player_name)
+                
+                # Add checkmark if this is the default player
+                if SettingsManager.default_player == player_path:
+                    player_submenu.setTitle(f"✓ {player_name}")
+                
+                # Play action
+                action = player_submenu.addAction("▶️ Play")
                 action.triggered.connect(lambda checked=False, p=player_path: self._pending_play_with_player(item, p))
+                
+                # Set as default action
+                action = player_submenu.addAction("⭐ Set as Default")
+                action.triggered.connect(lambda checked=False, p=player_path: self._set_default_player(p))
             
             play_with_menu.addSeparator()
             action = play_with_menu.addAction("Custom Player...")
