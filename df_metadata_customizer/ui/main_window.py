@@ -24,6 +24,7 @@ from df_metadata_customizer.ui.menu_bar import setup_menubar
 from df_metadata_customizer.ui.song_controls import create_song_controls
 from df_metadata_customizer.ui.status_bar import create_status_bar
 from df_metadata_customizer.ui.sort_controls import SortControlsManager
+from df_metadata_customizer.ui.styles import get_theme_colors
 from df_metadata_customizer.ui.tree_view import TreeViewManager
 from df_metadata_customizer.ui.preset_manager import PresetManager
 from df_metadata_customizer.ui.rules_panel import RulesPanelManager
@@ -303,17 +304,8 @@ class MainWindow(QMainWindow):
                 QToolTip { background-color: #252526; color: #cccccc; border: 1px solid #454545; }
                 QComboBox::drop-down { border: none; }
             """)
-            # Update theme colors - VS Code Dark Modern
-            self.theme_colors = {
-                'bg_primary': '#1e1e1e',      # Editor background
-                'bg_secondary': '#252526',     # Sidebar background
-                'bg_tertiary': '#2d2d30',      # Input backgrounds
-                'border': '#454545',           # Borders
-                'text': '#cccccc',             # Normal text
-                'text_secondary': '#858585',   # Dimmed text
-                'button': '#0e639c',           # Button background
-                'selection': '#264f78',        # Selection background
-            }
+            # Update theme colors - centralized palette
+            self.theme_colors = get_theme_colors("dark")
             self._refresh_theme_colors()
         else:
             # VS Code Light Modern color palette
@@ -337,17 +329,8 @@ class MainWindow(QMainWindow):
                 app.setPalette(palette)
             self.setPalette(palette)
             SettingsManager.theme = "light"
-            # Update theme colors - VS Code Light Modern
-            self.theme_colors = {
-                'bg_primary': '#ffffff',       # Editor background
-                'bg_secondary': '#f3f3f3',     # Sidebar background
-                'bg_tertiary': '#f8f8f8',      # Input backgrounds
-                'border': '#e5e5e5',           # Borders
-                'text': '#3b3b3b',             # Normal text
-                'text_secondary': '#717171',   # Dimmed text
-                'button': '#007acc',           # Button background
-                'selection': '#add6ff',        # Selection background
-            }
+            # Update theme colors - centralized palette
+            self.theme_colors = get_theme_colors("light")
             self._refresh_theme_colors()
             # VS Code Light Modern comprehensive stylesheet
             self.setStyleSheet("""
@@ -408,8 +391,8 @@ class MainWindow(QMainWindow):
             """)
         
         # Update song control buttons
-        button_hover = '#094771' if is_dark else '#33a3dc'
-        button_pressed = '#0a3270' if is_dark else '#2789b3'
+        button_hover = c.get('button_hover', c['button'])
+        button_pressed = c.get('button_pressed', c['button'])
         
         button_style = f"""
             QPushButton {{

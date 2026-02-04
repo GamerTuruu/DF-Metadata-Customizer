@@ -10,12 +10,47 @@ TEXT_TERTIARY = "#888"
 BORDER_COLOR = "#3d3d3d"
 BORDER_LIGHT = "#555555"
 BORDER_DARK = "#444"
-BUTTON_PRIMARY = "#0d47a1"
-BUTTON_PRIMARY_HOVER = "#1565c0"
+BUTTON_PRIMARY = "#0e639c"
+BUTTON_PRIMARY_HOVER = "#264f78"
 BUTTON_SECONDARY = "#3a3a3a"
 BUTTON_SECONDARY_HOVER = "#484848"
-SELECTION_COLOR = "#0d47a1"
-SELECTION_HOVER = "#1565c0"
+SELECTION_COLOR = "#264f78"
+SELECTION_HOVER = "#264f78"
+
+
+def get_theme_colors(theme: str) -> dict:
+    """Get centralized theme colors for consistent palette usage."""
+    is_dark = str(theme).lower() == "dark"
+    if is_dark:
+        # VS Code Dark Modern palette
+        base = {
+            'bg_primary': '#1e1e1e',
+            'bg_secondary': '#252526',
+            'bg_tertiary': '#2d2d30',
+            'border': '#454545',
+            'text': '#cccccc',
+            'text_secondary': '#858585',
+            'button': '#0e639c',
+            'selection': '#264f78',
+        }
+    else:
+        # VS Code Light Modern palette
+        base = {
+            'bg_primary': '#ffffff',
+            'bg_secondary': '#f3f3f3',
+            'bg_tertiary': '#f8f8f8',
+            'border': '#e5e5e5',
+            'text': '#3b3b3b',
+            'text_secondary': '#717171',
+            'button': '#007acc',
+            'selection': '#add6ff',
+        }
+
+    # Derived colors to keep palette consistent across UI
+    base['button_hover'] = base['selection']
+    base['button_pressed'] = base['selection']
+    base['selection_hover'] = base['selection']
+    return base
 
 # Style sheets
 MENUBAR_STYLESHEET = """
@@ -30,7 +65,7 @@ QMenu {
     color: #ffffff;
     border: 1px solid #3d3d3d;
 }
-QMenu::item:selected { background-color: #0d47a1; }
+QMenu::item:selected { background-color: #0e639c; }
 """
 
 SPLITTER_STYLESHEET = """
@@ -42,14 +77,14 @@ QSplitter::handle {
 
 BUTTON_PRIMARY_STYLESHEET = """
 QPushButton {
-    background-color: #0d47a1;
+    background-color: #0e639c;
     color: white;
     border: none;
     border-radius: 4px;
     font-weight: bold;
     padding: 6px 12px;
 }
-QPushButton:hover { background-color: #1565c0; }
+QPushButton:hover { background-color: #264f78; }
 """
 
 BUTTON_SMALL_STYLESHEET = """
@@ -81,7 +116,7 @@ QLineEdit {
     border-radius: 4px;
     padding: 4px 8px;
 }
-QLineEdit:focus { border: 2px solid #0d47a1; }
+QLineEdit:focus { border: 2px solid #0e639c; }
 """
 
 TREE_STYLESHEET = """
@@ -100,10 +135,10 @@ QTreeWidget::item:hover:!selected {
     background-color: #2d2d2d;
 }
 QTreeWidget::item:selected {
-    background-color: #0d47a1;
+    background-color: #0e639c;
 }
 QTreeWidget::item:selected:hover {
-    background-color: #1565c0;
+    background-color: #264f78;
 }
 QHeaderView::section {
     background-color: #2d2d2d;

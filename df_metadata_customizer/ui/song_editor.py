@@ -1744,7 +1744,7 @@ class SongEditorManager:
         
         # Update save all button
         if hasattr(self, 'save_all_btn'):
-            button_hover = '#094771' if is_dark else '#33a3dc'
+            button_hover = c.get('button_hover', c['button'])
             for btn in [self.save_all_btn] if hasattr(self, 'save_all_btn') else []:
                 if btn:
                     btn.setStyleSheet(f"""

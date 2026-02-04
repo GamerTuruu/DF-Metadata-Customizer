@@ -9,6 +9,7 @@ from PySide6.QtCore import Qt
 
 from df_metadata_customizer.core import SettingsManager
 from df_metadata_customizer.ui.rule_widgets import RuleRow
+from df_metadata_customizer.ui.styles import get_theme_colors
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +30,7 @@ class RulesPanelManager:
 
     def create_rules_tab(self):
         """Create rules and presets tab with rule builder."""
+        c = self.parent.theme_colors if hasattr(self.parent, 'theme_colors') and self.parent.theme_colors else get_theme_colors(SettingsManager.theme)
         frame = QFrame()
         frame.setStyleSheet("QFrame { background-color: transparent; }")
         layout = QVBoxLayout(frame)
@@ -64,17 +66,17 @@ class RulesPanelManager:
 
             add_btn = QPushButton("+ Add Rule")
             add_btn.setFixedWidth(100)
-            add_btn.setStyleSheet("""
-                QPushButton {
-                    background-color: #0d47a1;
+            add_btn.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: {c['button']};
                     color: white;
                     border: none;
                     border-radius: 4px;
                     padding: 6px;
-                }
-                QPushButton:hover {
-                    background-color: #1565c0;
-                }
+                }}
+                QPushButton:hover {{
+                    background-color: {c.get('button_hover', c['button'])};
+                }}
             """)
             add_btn.clicked.connect(lambda checked, t=tab_name.lower(): self.add_rule_to_tab(t))
             header_layout.addWidget(add_btn)
@@ -116,21 +118,21 @@ class RulesPanelManager:
         self.parent.save_json_btn = QPushButton("Save JSON")
         self.parent.save_json_btn.setEnabled(False)
         self.parent.save_json_btn.setFixedSize(100, 28)
-        self.parent.save_json_btn.setStyleSheet("""
-            QPushButton {
+        self.parent.save_json_btn.setStyleSheet(f"""
+            QPushButton {{
                 background-color: #555555;
                 color: #aaaaaa;
                 border: none;
                 border-radius: 3px;
                 padding: 4px;
-            }
-            QPushButton:enabled {
-                background-color: #0d47a1;
+            }}
+            QPushButton:enabled {{
+                background-color: {c['button']};
                 color: white;
-            }
-            QPushButton:enabled:hover {
-                background-color: #1565c0;
-            }
+            }}
+            QPushButton:enabled:hover {{
+                background-color: {c.get('button_hover', c['button'])};
+            }}
         """)
         self.parent.save_json_btn.clicked.connect(self.parent.save_json_changes)
         json_header.addStretch()
@@ -670,7 +672,7 @@ class RulesPanelManager:
             """)
         
         # Update buttons - Add Rule, Clear Rules, etc
-        button_hover = '#094771' if is_dark else '#33a3dc'
+        button_hover = c.get('button_hover', c['button'])
         button_disabled_bg = '#555555' if is_dark else '#e5e5e5'
         button_disabled_text = '#aaaaaa' if is_dark else '#999999'
         

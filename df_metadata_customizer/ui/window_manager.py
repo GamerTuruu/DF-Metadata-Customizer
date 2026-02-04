@@ -12,6 +12,7 @@ from PySide6.QtGui import QIcon, QFont
 
 from df_metadata_customizer.core import SettingsManager
 from df_metadata_customizer.ui.rule_widgets import NoScrollComboBox
+from df_metadata_customizer.ui.styles import get_theme_colors
 
 logger = logging.getLogger(__name__)
 
@@ -56,12 +57,15 @@ class WindowManager:
         dialog.setWindowFlags(Qt.Dialog)
         dialog.setWindowTitle("Preferences")
         dialog.setMinimumWidth(500)
-        dialog.setStyleSheet("""
-            QDialog { background-color: #2b2b2b; }
-            QLabel { color: #ffffff; }
-            QComboBox { background-color: #1e1e1e; color: #ffffff; border: 1px solid #3d3d3d; }
-            QPushButton { background-color: #0d47a1; color: white; border: none; padding: 6px 12px; }
-            QPushButton:hover { background-color: #1565c0; }
+        theme_pref = SettingsManager.get_theme("System")
+        resolved_theme = self.window.current_theme if theme_pref == "System" else theme_pref
+        c = get_theme_colors(resolved_theme)
+        dialog.setStyleSheet(f"""
+            QDialog {{ background-color: {c['bg_secondary']}; }}
+            QLabel {{ color: {c['text']}; }}
+            QComboBox {{ background-color: {c['bg_primary']}; color: {c['text']}; border: 1px solid {c['border']}; }}
+            QPushButton {{ background-color: {c['button']}; color: white; border: none; padding: 6px 12px; }}
+            QPushButton:hover {{ background-color: {c.get('button_hover', c['button'])}; }}
         """)
         
         layout = QVBoxLayout(dialog)

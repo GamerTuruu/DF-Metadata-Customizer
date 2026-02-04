@@ -391,10 +391,15 @@ class SortControlsManager:
         button_disabled = '#252526' if is_dark else '#f3f3f3'
         text_disabled = '#858585' if is_dark else '#999999'
         
-        # Button colors
-        button_bg = c['bg_tertiary'] if is_dark else '#e8e8e8'
-        button_hover = c['bg_secondary'] if is_dark else '#d4d4d4'
-        button_text = c['text'] if is_dark else '#2d2d2d'
+        # Button colors (neutral buttons)
+        button_bg = c['bg_tertiary']
+        button_hover = c['bg_secondary']
+        button_text = c['text']
+        
+        # Primary action colors
+        accent_bg = c['button']
+        accent_hover = c.get('selection', c['button'])
+        accent_text = '#ffffff'
         
         dropdown_bg = '#2d2d2d' if is_dark else '#ffffff'
         combo_stylesheet = f"""
@@ -405,6 +410,9 @@ class SortControlsManager:
                 border-radius: 3px;
                 padding: 4px;
                 padding-right: 20px;
+            }}
+            QComboBox:hover {{
+                border: 1px solid {accent_bg};
             }}
             QComboBox::drop-down {{
                 border: none;
@@ -419,6 +427,10 @@ class SortControlsManager:
                 color: {c['text']};
                 selection-background-color: {c['button']};
                 selection-color: #ffffff;
+            }}
+            QComboBox QAbstractItemView::item:hover {{
+                background-color: {accent_hover};
+                color: #ffffff;
             }}
         """
         
@@ -443,32 +455,32 @@ class SortControlsManager:
             }}
         """
         
-        # Update toggle button with high contrast
-        toggle_bg = c['button']
-        toggle_text = '#ffffff'
-        toggle_border = c['button']
+        # Update toggle/add buttons with high-contrast primary style
+        primary_button_stylesheet = f"""
+            QPushButton {{
+                background-color: {accent_bg};
+                color: {accent_text};
+                border: 2px solid {accent_bg};
+                border-radius: 4px;
+                font-weight: bold;
+            }}
+            QPushButton:hover {{
+                background-color: {accent_hover};
+                border-color: {accent_hover};
+            }}
+            QPushButton:pressed {{
+                background-color: {button_pressed};
+            }}
+            QPushButton:disabled {{
+                background-color: {button_disabled};
+                color: {text_disabled};
+                border: 2px solid {button_disabled};
+            }}
+        """
         if self.toggle_btn:
-            self.toggle_btn.setStyleSheet(f"""
-                QPushButton {{
-                    background-color: {toggle_bg};
-                    color: {toggle_text};
-                    border: 2px solid {toggle_border};
-                    border-radius: 4px;
-                    font-weight: bold;
-                    font-size: 12px;
-                }}
-                QPushButton:hover {{
-                    background-color: {button_hover};
-                    border-color: {button_hover};
-                }}
-                QPushButton:pressed {{
-                    background-color: {button_pressed};
-                }}
-            """)
-        
-        # Update add button
+            self.toggle_btn.setStyleSheet(primary_button_stylesheet)
         if self.add_sort_btn:
-            self.add_sort_btn.setStyleSheet(button_stylesheet)
+            self.add_sort_btn.setStyleSheet(primary_button_stylesheet)
         
         # Update summary label
         if self.summary_label:

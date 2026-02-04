@@ -4,6 +4,8 @@ from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QLabel, QProgressBar, QPushButton, QFrame
 )
 from PySide6.QtCore import Qt
+from df_metadata_customizer.core import SettingsManager
+from df_metadata_customizer.ui.styles import get_theme_colors
 
 
 class ProgressDialog(QDialog):
@@ -18,36 +20,37 @@ class ProgressDialog(QDialog):
         self.setMinimumWidth(400)
         self.cancelled = False
         
-        self.setStyleSheet("""
-            QDialog {
-                background-color: #2b2b2b;
-            }
-            QLabel {
-                color: #ffffff;
+        c = get_theme_colors(SettingsManager.theme)
+        self.setStyleSheet(f"""
+            QDialog {{
+                background-color: {c['bg_secondary']};
+            }}
+            QLabel {{
+                color: {c['text']};
                 font-size: 11pt;
-            }
-            QPushButton {
+            }}
+            QPushButton {{
                 background-color: #b33333;
                 color: white;
                 border: none;
                 border-radius: 4px;
                 padding: 8px 16px;
                 font-size: 10pt;
-            }
-            QPushButton:hover {
+            }}
+            QPushButton:hover {{
                 background-color: #c55555;
-            }
-            QProgressBar {
-                border: 1px solid #3d3d3d;
+            }}
+            QProgressBar {{
+                border: 1px solid {c['border']};
                 border-radius: 4px;
                 text-align: center;
-                background-color: #1e1e1e;
-                color: #ffffff;
-            }
-            QProgressBar::chunk {
-                background-color: #0d47a1;
+                background-color: {c['bg_primary']};
+                color: {c['text']};
+            }}
+            QProgressBar::chunk {{
+                background-color: {c['button']};
                 border-radius: 3px;
-            }
+            }}
         """)
         
         layout = QVBoxLayout(self)

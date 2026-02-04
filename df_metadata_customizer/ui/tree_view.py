@@ -89,13 +89,13 @@ class TreeViewManager:
                 hover_color = '#2a2d2e'      # Subtle hover
                 header_bg = '#252526'         # Sidebar color
                 border_light = '#454545'
-                selection_hover = '#094771'   # Lighter selection on hover
             else:
                 # VS Code Light Modern
                 hover_color = '#f0f0f0'       # Light hover
                 header_bg = '#f3f3f3'         # Sidebar color
                 border_light = '#d4d4d4'
-                selection_hover = '#33a3dc'   # Lighter selection on hover
+
+            selection_hover = c.get('selection_hover', c['selection'])
             
             self.tree.setStyleSheet(f"""
                 QTreeWidget {{
