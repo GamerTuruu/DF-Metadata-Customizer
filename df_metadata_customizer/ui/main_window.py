@@ -35,6 +35,7 @@ from df_metadata_customizer.ui.preview_panel import PreviewPanelManager
 from df_metadata_customizer.ui.search_handler import SearchHandler
 from df_metadata_customizer.ui.sort_handler import SortHandler
 from df_metadata_customizer.ui.rule_applier import RuleApplier
+from df_metadata_customizer.ui.rule_widgets import NoScrollComboBox
 
 logger = logging.getLogger(__name__)
 
