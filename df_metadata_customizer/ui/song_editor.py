@@ -59,6 +59,8 @@ class SongEditorManager:
         self._persistent_date: str | None = None  # Keep track of user-set date
         self._persistent_disc: str | None = None  # Keep track of user-set disc
         self._active_menu = None  # Track active context menu
+        self._original_id3: dict[str, str] = {}  # Store original ID3 values from file
+        self._preset_applied: bool = False  # Track if preset has been applied
 
         self.pending_tree: QTreeWidget | None = None
         self.source_label: QLabel | None = None
@@ -395,6 +397,7 @@ class SongEditorManager:
         cover_artist_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         cover_artist_edit = QLineEdit()
         cover_artist_edit.setFixedHeight(h_scale)
+        cover_artist_edit.setMinimumWidth(self._scale(60))
         self._style_input_field(cover_artist_edit)
         compact_row1.addWidget(cover_artist_label)
         compact_row1.addWidget(cover_artist_edit, 1)
@@ -406,6 +409,7 @@ class SongEditorManager:
         version_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         version_edit = QLineEdit()
         version_edit.setFixedHeight(h_scale)
+        version_edit.setMinimumWidth(self._scale(40))
         self._style_input_field(version_edit)
         version_edit.textChanged.connect(lambda: self._validate_numeric_field(version_edit))
         compact_row1.addWidget(version_label)
@@ -418,6 +422,7 @@ class SongEditorManager:
         date_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         date_edit = QLineEdit()
         date_edit.setFixedHeight(h_scale)
+        date_edit.setMinimumWidth(self._scale(60))
         self._style_input_field(date_edit)
         compact_row1.addWidget(date_label)
         compact_row1.addWidget(date_edit, 1)
@@ -436,6 +441,7 @@ class SongEditorManager:
         disc_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         disc_edit = QLineEdit()
         disc_edit.setFixedHeight(h_scale)
+        disc_edit.setMinimumWidth(self._scale(40))
         self._style_input_field(disc_edit)
         disc_edit.textChanged.connect(lambda: self._validate_numeric_field(disc_edit))
         compact_row2.addWidget(disc_label)
@@ -448,6 +454,7 @@ class SongEditorManager:
         track_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         track_edit = QLineEdit()
         track_edit.setFixedHeight(h_scale)
+        track_edit.setMinimumWidth(self._scale(40))
         self._style_input_field(track_edit)
         track_edit.textChanged.connect(lambda: self._validate_track_field(track_edit))
         compact_row2.addWidget(track_label)
@@ -460,6 +467,7 @@ class SongEditorManager:
         special_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         special_edit = QLineEdit()
         special_edit.setFixedHeight(h_scale)
+        special_edit.setMinimumWidth(self._scale(40))
         self._style_input_field(special_edit)
         special_edit.textChanged.connect(lambda: self._validate_numeric_field(special_edit))
         compact_row2.addWidget(special_label)
@@ -544,7 +552,7 @@ class SongEditorManager:
         clear_preset_btn = QPushButton("Clear")
         clear_preset_btn.setFixedHeight(h_scale)
         clear_preset_btn.setMaximumWidth(self._scale(80))
-        clear_preset_btn.clicked.connect(lambda: self.preset_combo.setCurrentIndex(-1))
+        clear_preset_btn.clicked.connect(self._clear_preset)
         preset_row.addWidget(clear_preset_btn)
         
         form.addRow("Preset:", preset_row)
@@ -553,6 +561,7 @@ class SongEditorManager:
         title_edit = QLineEdit()
         title_edit.setFixedHeight(h_scale)
         self._style_input_field(title_edit)
+        title_edit.textChanged.connect(lambda: self._on_id3_field_edited())
         form.addRow("Title:", title_edit)
         out["Title"] = title_edit
         
@@ -560,6 +569,7 @@ class SongEditorManager:
         artist_edit = QLineEdit()
         artist_edit.setFixedHeight(h_scale)
         self._style_input_field(artist_edit)
+        artist_edit.textChanged.connect(lambda: self._on_id3_field_edited())
         form.addRow("Artist:", artist_edit)
         out["Artist"] = artist_edit
         
@@ -567,6 +577,7 @@ class SongEditorManager:
         album_edit = QLineEdit()
         album_edit.setFixedHeight(h_scale)
         self._style_input_field(album_edit)
+        album_edit.textChanged.connect(lambda: self._on_id3_field_edited())
         form.addRow("Album:", album_edit)
         out["Album"] = album_edit
         
@@ -582,6 +593,7 @@ class SongEditorManager:
         disc_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         disc_display = QLabel("-")
         disc_display.setFixedHeight(h_scale)
+        disc_display.setMinimumWidth(self._scale(40))
         disc_display.setStyleSheet("color: #888888;")
         disc_display.setAlignment(Qt.AlignmentFlag.AlignVCenter)
         compact_row.addWidget(disc_label)
@@ -594,6 +606,7 @@ class SongEditorManager:
         track_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         track_display = QLabel("-")
         track_display.setFixedHeight(h_scale)
+        track_display.setMinimumWidth(self._scale(40))
         track_display.setStyleSheet("color: #888888;")
         track_display.setAlignment(Qt.AlignmentFlag.AlignVCenter)
         compact_row.addWidget(track_label)
@@ -606,6 +619,7 @@ class SongEditorManager:
         date_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         date_display = QLabel("-")
         date_display.setFixedHeight(h_scale)
+        date_display.setMinimumWidth(self._scale(40))
         date_display.setStyleSheet("color: #888888;")
         date_display.setAlignment(Qt.AlignmentFlag.AlignVCenter)
         compact_row.addWidget(date_label)
@@ -676,6 +690,10 @@ class SongEditorManager:
         jsond = json_data or extract_json_from_song(file_path) or {}
         id3 = get_id3_tags(file_path)
         cover = get_cover_art(file_path)
+
+        # Store original ID3 values and mark preset as not applied
+        self._original_id3 = id3.copy()
+        self._preset_applied = False
 
         # Remux and compute xxHash when file is chosen
         try:
@@ -805,6 +823,8 @@ class SongEditorManager:
             value = str(id3.get(key, ""))
             field.setText(value)
             self._set_field_tooltip(field, value)
+        # Update styling based on whether original values are shown
+        self._update_id3_field_styling()
 
     def _update_filename_display(self, jsond: dict) -> None:
         """Update the filename display based on JSON data."""
@@ -836,6 +856,44 @@ class SongEditorManager:
         
         field.setText(comm_text)
         self._set_field_tooltip(field, comm_text)
+
+    def _on_id3_field_edited(self) -> None:
+        """Handle manual edits to ID3 fields - update styling to reflect changes."""
+        # Update styling when user manually edits fields
+        self._update_id3_field_styling()
+
+    def _update_id3_field_styling(self) -> None:
+        """Update styling of ID3 fields to show if they're original (italic) or modified (normal)."""
+        for key, field in self.id3_fields.items():
+            if key in ("Filename", "Discnumber", "Track", "Date", "COMM_eng_preview", "Comment"):
+                # Skip fields that are display-only or driven by JSON
+                continue
+            if isinstance(field, QLabel):
+                continue
+            if not isinstance(field, QLineEdit):
+                continue
+            
+            # Check if current value matches original value
+            current_value = field.text().strip()
+            original_value = self._original_id3.get(key, "").strip()
+            
+            # If no preset applied and value matches original, show in italic/dimmed
+            if not self._preset_applied and current_value == original_value and original_value:
+                field.setStyleSheet("""
+                    QLineEdit {
+                        background-color: #1e1e1e;
+                        color: #888888;
+                        border: 1px solid #3d3d3d;
+                        border-radius: 4px;
+                        padding: 4px 8px;
+                        font-style: italic;
+                    }
+                    QLineEdit:focus { border: 2px solid #0d47a1; }
+                """)
+            else:
+                # Normal styling for modified or preset-applied values
+                self._style_input_field(field)
+
 
     def _apply_cover_preview(self, cover_bytes: bytes | None) -> None:
         if not self.cover_label:
@@ -1256,6 +1314,8 @@ class SongEditorManager:
 
     def reset_editor(self) -> None:
         self._set_source_label("(none)")
+        self._original_id3 = {}
+        self._preset_applied = False
         self._fill_json_fields({})
         self._fill_id3_fields({})
         self._current_cover_bytes = None
@@ -1333,6 +1393,23 @@ class SongEditorManager:
             return None
         return max(tracks) + 1
 
+    def _clear_preset(self) -> None:
+        """Clear preset selection and restore original ID3 values."""
+        if self.preset_combo:
+            self.preset_combo.setCurrentIndex(-1)
+        
+        # Restore original ID3 values
+        if self._original_id3:
+            for key in ["Title", "Artist", "Album"]:
+                if key in self.id3_fields and key in self._original_id3:
+                    field = self.id3_fields[key]
+                    if isinstance(field, QLineEdit):
+                        field.setText(self._original_id3.get(key, ""))
+        
+        # Mark preset as not applied and update styling
+        self._preset_applied = False
+        self._update_id3_field_styling()
+
     def apply_preset_to_id3(self) -> None:
         if self.preset_combo is None:
             return
@@ -1357,16 +1434,30 @@ class SongEditorManager:
         artist_rules = preset_data.get("artist", [])
         album_rules = preset_data.get("album", [])
 
+        # Check if preset has any rules at all
+        has_any_rules = bool(title_rules or artist_rules or album_rules)
+
         base = self._apply_rules_to_field(base, title_rules, MetadataFields.TITLE)
         base = self._apply_rules_to_field(base, artist_rules, MetadataFields.ARTIST)
         base = self._apply_rules_to_field(base, album_rules, "Album")
 
+        # Block signals to prevent textChanged from triggering styling updates during preset application
         if self.id3_fields.get("Title"):
+            self.id3_fields["Title"].blockSignals(True)
             self.id3_fields["Title"].setText(str(base.get(MetadataFields.TITLE, "")))
+            self.id3_fields["Title"].blockSignals(False)
         if self.id3_fields.get("Artist"):
+            self.id3_fields["Artist"].blockSignals(True)
             self.id3_fields["Artist"].setText(str(base.get(MetadataFields.ARTIST, "")))
+            self.id3_fields["Artist"].blockSignals(False)
         if self.id3_fields.get("Album"):
+            self.id3_fields["Album"].blockSignals(True)
             self.id3_fields["Album"].setText(str(base.get("Album", "")))
+            self.id3_fields["Album"].blockSignals(False)
+        
+        # Only mark preset as applied if it actually has rules
+        self._preset_applied = has_any_rules
+        self._update_id3_field_styling()
 
     def _apply_rules_to_field(self, data: dict, rules: list[dict], target_field: str) -> dict:
         result = dict(data)
