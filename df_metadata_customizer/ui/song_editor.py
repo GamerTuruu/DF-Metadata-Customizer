@@ -390,7 +390,7 @@ class SongEditorManager:
         compact_row1.setAlignment(Qt.AlignmentFlag.AlignVCenter)
         
         cover_artist_label = QLabel("Cover Artist:")
-        cover_artist_label.setMaximumWidth(label_w1)
+        cover_artist_label.setFixedWidth(label_w1)
         cover_artist_label.setFixedHeight(h_scale)
         cover_artist_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         cover_artist_edit = QLineEdit()
@@ -401,7 +401,7 @@ class SongEditorManager:
         out[MetadataFields.COVER_ARTIST] = cover_artist_edit
         
         version_label = QLabel("Version:")
-        version_label.setMaximumWidth(label_w2)
+        version_label.setFixedWidth(label_w2)
         version_label.setFixedHeight(h_scale)
         version_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         version_edit = QLineEdit()
@@ -412,8 +412,8 @@ class SongEditorManager:
         compact_row1.addWidget(version_edit, 1)
         out[MetadataFields.VERSION] = version_edit
         
-        date_label = QLabel("Year:")
-        date_label.setMaximumWidth(label_w3)
+        date_label = QLabel("Date:")
+        date_label.setFixedWidth(label_w3)
         date_label.setFixedHeight(h_scale)
         date_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         date_edit = QLineEdit()
@@ -431,7 +431,7 @@ class SongEditorManager:
         compact_row2.setAlignment(Qt.AlignmentFlag.AlignVCenter)
         
         disc_label = QLabel("Disc:")
-        disc_label.setMaximumWidth(label_w1)
+        disc_label.setFixedWidth(label_w1)
         disc_label.setFixedHeight(h_scale)
         disc_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         disc_edit = QLineEdit()
@@ -443,7 +443,7 @@ class SongEditorManager:
         out[MetadataFields.DISC] = disc_edit
         
         track_label = QLabel("Track:")
-        track_label.setMaximumWidth(label_w2)
+        track_label.setFixedWidth(label_w2)
         track_label.setFixedHeight(h_scale)
         track_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         track_edit = QLineEdit()
@@ -455,7 +455,7 @@ class SongEditorManager:
         out[MetadataFields.TRACK] = track_edit
         
         special_label = QLabel("Special:")
-        special_label.setMaximumWidth(label_w3)
+        special_label.setFixedWidth(label_w3)
         special_label.setFixedHeight(h_scale)
         special_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         special_edit = QLineEdit()
@@ -577,7 +577,7 @@ class SongEditorManager:
         compact_row.setAlignment(Qt.AlignmentFlag.AlignVCenter)
         
         disc_label = QLabel("Disc:")
-        disc_label.setMaximumWidth(label_w1)
+        disc_label.setFixedWidth(label_w1)
         disc_label.setFixedHeight(h_scale)
         disc_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         disc_display = QLabel("-")
@@ -589,7 +589,7 @@ class SongEditorManager:
         out["Discnumber"] = disc_display
         
         track_label = QLabel("Track:")
-        track_label.setMaximumWidth(label_w2)
+        track_label.setFixedWidth(label_w2)
         track_label.setFixedHeight(h_scale)
         track_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         track_display = QLabel("-")
@@ -600,8 +600,8 @@ class SongEditorManager:
         compact_row.addWidget(track_display, 1)
         out["Track"] = track_display
         
-        date_label = QLabel("Date:")
-        date_label.setMaximumWidth(label_w3)
+        date_label = QLabel("Year:")
+        date_label.setFixedWidth(label_w3)
         date_label.setFixedHeight(h_scale)
         date_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         date_display = QLabel("-")
