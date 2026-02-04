@@ -25,18 +25,29 @@ class NoScrollComboBox(QComboBox):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         
-        # Get the settings manager for theme colors
-        try:
-            settings = SettingsManager()
-            theme = settings.get_theme()
-            if theme == "dark":
-                arrow_color = QColor("#ffffff")
-            elif theme == "light":
-                arrow_color = QColor("#000000")
-            else:  # system
-                arrow_color = QColor("#ffffff")  # default to white
-        except:
-            arrow_color = QColor("#ffffff")  # fallback
+        # Get theme colors from parent window
+        arrow_color = QColor("#cccccc")  # Default fallback
+        
+        # Try to get theme colors from parent
+        parent_widget = self.parent()
+        while parent_widget:
+            if hasattr(parent_widget, 'theme_colors') and parent_widget.theme_colors:
+                # Use the text color from theme
+                text_color = parent_widget.theme_colors.get('text', '#cccccc')
+                arrow_color = QColor(text_color)
+                break
+            parent_widget = parent_widget.parent()
+        
+        # If no parent theme found, check SettingsManager
+        if arrow_color == QColor("#cccccc"):
+            try:
+                theme = SettingsManager.theme or "dark"
+                if theme.lower() == "light":
+                    arrow_color = QColor("#000000")
+                else:
+                    arrow_color = QColor("#cccccc")
+            except:
+                pass
         
         # Arrow position (right side of the combobox)
         arrow_x = self.width() - 12
@@ -216,54 +227,48 @@ class RuleRow(QFrame):
         dropdown_bg = '#2d2d2d' if is_dark else '#ffffff'
         self.setStyleSheet(f"""
             QFrame {{
-                background-color: {row_bg};
-                border: 1px solid {c['border']};
-                border-radius: 4px;
-                padding: 4px;
+            background-color: {row_bg};
+            border: 1px solid {c['border']};
+            border-radius: 4px;
+            padding: 2px;
             }}
             QComboBox {{
-                background-color: {c['bg_primary']};
-                color: {c['text']};
-                border: 1px solid {c['border']};
-                border-radius: 3px;
-                padding: 4px;
-                padding-right: 20px;
+            background-color: {c['bg_primary']};
+            color: {c['text']};
+            border: 1px solid {c['border']};
+            border-radius: 3px;
+            padding: 2px;
+            padding-right: 16px;
             }}
             QComboBox::drop-down {{
-                border: none;
-                width: 20px;
-                background-color: transparent;
+            border: none;
+            width: 16px;
+            background-color: transparent;
             }}
             QComboBox::down-arrow {{
-                image: none;  /* We draw the arrow manually in paintEvent */
+            image: none;
             }}
             QComboBox QAbstractItemView {{
-                background-color: {dropdown_bg};
-                color: {c['text']};
-                selection-background-color: {c['button']};
-                selection-color: #ffffff;
-            }}
-            QComboBox QAbstractItemView {{
-                background-color: {dropdown_bg};
-                color: {c['text']};
-                selection-background-color: {c['button']};
-                selection-color: #ffffff;
+            background-color: {dropdown_bg};
+            color: {c['text']};
+            selection-background-color: {c['button']};
+            selection-color: #ffffff;
             }}
             QLineEdit {{
-                background-color: {c['bg_primary']};
-                color: {c['text']};
-                border: 1px solid {c['border']};
-                border-radius: 3px;
-                padding: 4px;
+            background-color: {c['bg_primary']};
+            color: {c['text']};
+            border: 1px solid {c['border']};
+            border-radius: 3px;
+            padding: 2px;
             }}
             QPushButton {{
-                background-color: {c['bg_secondary']};
-                color: {c['text']};
-                border: 1px solid {c['border']};
-                border-radius: 3px;
-                padding: 4px;
+            background-color: {c['bg_secondary']};
+            color: {c['text']};
+            border: 1px solid {c['border']};
+            border-radius: 3px;
+            padding: 2px;
             }}
             QPushButton:hover {{
-                background-color: {c['button']};
+            background-color: {c['button']};
             }}
         """)
