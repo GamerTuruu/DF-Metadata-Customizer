@@ -60,6 +60,8 @@ class SongEditorManager:
         self._active_menu = None  # Track active context menu
         self._original_id3: dict[str, str] = {}  # Store original ID3 values from file
         self._preset_applied: bool = False  # Track if preset has been applied
+        self._theme_colors: dict | None = None
+        self._is_dark: bool = True
 
         self.pending_tree: QTreeWidget | None = None
         self.source_label: QLabel | None = None
@@ -88,15 +90,21 @@ class SongEditorManager:
 
     def _style_input_field(self, widget: QLineEdit) -> None:
         """Apply consistent styling to input fields."""
-        widget.setStyleSheet("""
-            QLineEdit {
-                background-color: #1e1e1e;
-                color: #ffffff;
-                border: 1px solid #3d3d3d;
+        c = self._theme_colors or {
+            "bg_primary": "#1e1e1e",
+            "border": "#3d3d3d",
+            "text": "#ffffff",
+            "button": "#0d47a1",
+        }
+        widget.setStyleSheet(f"""
+            QLineEdit {{
+                background-color: {c['bg_primary']};
+                color: {c['text']};
+                border: 1px solid {c['border']};
                 border-radius: 4px;
                 padding: 4px 8px;
-            }
-            QLineEdit:focus { border: 2px solid #0d47a1; }
+            }}
+            QLineEdit:focus {{ border: 2px solid {c['button']}; }}
         """)
 
     def _set_field_tooltip(self, widget, full_text: str) -> None:
@@ -868,6 +876,16 @@ class SongEditorManager:
 
     def _update_id3_field_styling(self) -> None:
         """Update styling of ID3 fields to show if they're original (italic) or modified (normal)."""
+        c = self._theme_colors or {
+            "bg_primary": "#1e1e1e",
+            "bg_secondary": "#2b2b2b",
+            "border": "#3d3d3d",
+            "text": "#ffffff",
+            "text_secondary": "#888888",
+            "button": "#0d47a1",
+        }
+        dim_bg = c.get("bg_secondary", c["bg_primary"])
+        dim_text = c.get("text_secondary", "#888888")
         for key, field in self.id3_fields.items():
             if key in ("Filename", "Discnumber", "Track", "Date", "COMM_eng_preview", "Comment"):
                 # Skip fields that are display-only or driven by JSON
@@ -883,16 +901,16 @@ class SongEditorManager:
             
             # If no preset applied and value matches original, show in italic/dimmed
             if not self._preset_applied and current_value == original_value and original_value:
-                field.setStyleSheet("""
-                    QLineEdit {
-                        background-color: #1e1e1e;
-                        color: #888888;
-                        border: 1px solid #3d3d3d;
+                field.setStyleSheet(f"""
+                    QLineEdit {{
+                        background-color: {dim_bg};
+                        color: {dim_text};
+                        border: 1px solid {c['border']};
                         border-radius: 4px;
                         padding: 4px 8px;
                         font-style: italic;
-                    }
-                    QLineEdit:focus { border: 2px solid #0d47a1; }
+                    }}
+                    QLineEdit:focus {{ border: 2px solid {c['button']}; }}
                 """)
             else:
                 # Normal styling for modified or preset-applied values
@@ -1665,6 +1683,8 @@ class SongEditorManager:
         tags.save(path, v2_version=4)    
     def update_theme(self, theme_colors: dict, is_dark: bool):
         """Update song editor components with current theme colors."""
+        self._theme_colors = theme_colors
+        self._is_dark = is_dark
         c = theme_colors
         
         # Update textboxes (metadata fields) with proper light theme colors
@@ -1767,3 +1787,6 @@ class SongEditorManager:
                             background-color: {button_hover};
                         }}
                     """)
+
+        # Re-apply ID3 styling to reflect theme and original/modified state
+        self._update_id3_field_styling()
