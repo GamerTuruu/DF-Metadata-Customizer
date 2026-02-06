@@ -214,18 +214,17 @@ def open_folder_with_file_manager(folder_path: str, file_to_select: str = None) 
                                env=os.environ.copy())
             else:  # Linux and other Unix-like systems
                 # Try file managers in order of preference
-                # Use list arguments instead of shell=True for better Wayland compatibility
+                # Use only regular file paths (not URIs) to avoid browser opening
                 env = _get_host_env()
-                file_uri = Path(abs_file_path).as_uri()
                 parent_folder = str(Path(abs_file_path).parent)
 
+                # Try file managers with --select option first
                 if shutil.which("nautilus"):
-                    if _try_run(["nautilus", "--select", abs_file_path], env):
-                        return
-                    if _try_run(["nautilus", "--select", file_uri], env):
+                    # Try with regular path first
+                    if _try_run(["nautilus", parent_folder], env):
                         return
                 if shutil.which("nemo"):
-                    if _try_run(["nemo", "--select", abs_file_path], env):
+                    if _try_run(["nemo", parent_folder], env):
                         return
                 if shutil.which("dolphin"):
                     if _try_run(["dolphin", "--select", abs_file_path], env):
@@ -233,16 +232,15 @@ def open_folder_with_file_manager(folder_path: str, file_to_select: str = None) 
                 if shutil.which("thunar"):
                     if _try_run(["thunar", parent_folder], env):
                         return
+                if shutil.which("caja"):  # MATE file manager
+                    if _try_run(["caja", parent_folder], env):
+                        return
                 if shutil.which("pcmanfm"):
                     if _try_run(["pcmanfm", parent_folder], env):
                         return
-                if shutil.which("gio"):
-                    if _try_run(["gio", "open", parent_folder], env):
-                        return
 
-                # Fallback: use xdg-open on parent folder
-                if _try_run(["xdg-open", parent_folder], env):
-                    return
+                # Try xdg-open as last resort (parent folder only, not URI)
+                _try_run(["xdg-open", parent_folder], env)
         else:
             # Just open folder
             abs_path = str(Path(folder_path).resolve())
@@ -260,11 +258,8 @@ def open_folder_with_file_manager(folder_path: str, file_to_select: str = None) 
                                shell=True,
                                env=os.environ.copy())
             else:  # Linux and other Unix-like systems
-                # Use argument list for better Wayland compatibility
+                # Use regular paths only (not URIs) to avoid browser opening
                 env = _get_host_env()
-                if _try_run(["xdg-open", abs_path], env):
-                    return
-                if shutil.which("gio"):
-                    _try_run(["gio", "open", abs_path], env)
+                _try_run(["xdg-open", abs_path], env)
     except Exception as e:
         raise Exception(f"Failed to open folder: {e}")
