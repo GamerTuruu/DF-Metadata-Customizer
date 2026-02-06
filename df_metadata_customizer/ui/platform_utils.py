@@ -8,6 +8,34 @@ from pathlib import Path
 from typing import List, Tuple
 
 
+def _get_host_env():
+    """Get environment for subprocess with proper AppImage/Wayland support.
+    
+    When running from AppImage, we need to preserve host environment variables
+    for display servers (X11/Wayland) and desktop integration to work properly.
+    """
+    env = os.environ.copy()
+    
+    # For AppImage: Preserve original environment variables
+    # AppImage sets APPIMAGE_* variables with original values
+    if 'APPIMAGE' in env:
+        # Restore original PATH to access host binaries
+        if 'OWD' in env:  # Original Working Directory
+            original_path = env.get('APPIMAGE_ORIGINAL_PATH')
+            if original_path:
+                env['PATH'] = original_path
+        
+        # Ensure display server variables are set
+        for var in ['DISPLAY', 'WAYLAND_DISPLAY', 'XDG_RUNTIME_DIR', 
+                    'DBUS_SESSION_BUS_ADDRESS', 'XDG_SESSION_TYPE',
+                    'GDK_BACKEND', 'QT_QPA_PLATFORM']:
+            original_var = f'APPIMAGE_ORIGINAL_{var}'
+            if original_var in env:
+                env[var] = env[original_var]
+    
+    return env
+
+
 def get_available_players() -> List[Tuple[str, str]]:
     """Get list of available media players on the system.
     
@@ -103,7 +131,7 @@ def open_file_with_player(file_path: str, player_path: str | None = None) -> Non
             else:  # Linux
                 subprocess.Popen(["xdg-open", abs_path], stdout=subprocess.DEVNULL, 
                                stderr=subprocess.DEVNULL, close_fds=True, 
-                               start_new_session=True)
+                               start_new_session=True, env=_get_host_env())
         else:
             # Use specified player
             if system == "Darwin" and player_path.endswith(".app"):
@@ -118,7 +146,8 @@ def open_file_with_player(file_path: str, player_path: str | None = None) -> Non
             else:  # Linux
                 subprocess.Popen([player_path, abs_path], 
                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, 
-                               close_fds=True, start_new_session=True)
+                               close_fds=True, start_new_session=True,
+                               env=_get_host_env())
     except Exception as e:
         raise Exception(f"Failed to open file with player: {e}")
 
@@ -162,31 +191,36 @@ def open_folder_with_file_manager(folder_path: str, file_to_select: str = None) 
                                    stdout=subprocess.DEVNULL, 
                                    stderr=subprocess.DEVNULL, 
                                    close_fds=True, 
-                                   start_new_session=True)
+                                   start_new_session=True,
+                                   env=_get_host_env())
                 elif shutil.which("nemo"):  # Cinnamon file manager
                     subprocess.Popen(["nemo", "--select", abs_file_path],
                                    stdout=subprocess.DEVNULL, 
                                    stderr=subprocess.DEVNULL, 
                                    close_fds=True, 
-                                   start_new_session=True)
+                                   start_new_session=True,
+                                   env=_get_host_env())
                 elif shutil.which("dolphin"):  # KDE file manager
                     subprocess.Popen(["dolphin", "--select", abs_file_path],
                                    stdout=subprocess.DEVNULL, 
                                    stderr=subprocess.DEVNULL, 
                                    close_fds=True, 
-                                   start_new_session=True)
+                                   start_new_session=True,
+                                   env=_get_host_env())
                 elif shutil.which("thunar"):  # XFCE file manager
                     subprocess.Popen(["thunar", str(Path(abs_file_path).parent)],
                                    stdout=subprocess.DEVNULL, 
                                    stderr=subprocess.DEVNULL, 
                                    close_fds=True, 
-                                   start_new_session=True)
+                                   start_new_session=True,
+                                   env=_get_host_env())
                 elif shutil.which("pcmanfm"):  # LXDE file manager
                     subprocess.Popen(["pcmanfm", str(Path(abs_file_path).parent)],
                                    stdout=subprocess.DEVNULL, 
                                    stderr=subprocess.DEVNULL, 
                                    close_fds=True, 
-                                   start_new_session=True)
+                                   start_new_session=True,
+                                   env=_get_host_env())
                 else:
                     # Fallback: use xdg-open on parent folder
                     folder = str(Path(abs_file_path).parent)
@@ -194,7 +228,8 @@ def open_folder_with_file_manager(folder_path: str, file_to_select: str = None) 
                                    stdout=subprocess.DEVNULL, 
                                    stderr=subprocess.DEVNULL, 
                                    close_fds=True, 
-                                   start_new_session=True)
+                                   start_new_session=True,
+                                   env=_get_host_env())
         else:
             # Just open folder
             abs_path = str(Path(folder_path).resolve())
@@ -217,6 +252,7 @@ def open_folder_with_file_manager(folder_path: str, file_to_select: str = None) 
                                stdout=subprocess.DEVNULL, 
                                stderr=subprocess.DEVNULL, 
                                close_fds=True, 
-                               start_new_session=True)
+                               start_new_session=True,
+                               env=_get_host_env())
     except Exception as e:
         raise Exception(f"Failed to open folder: {e}")
