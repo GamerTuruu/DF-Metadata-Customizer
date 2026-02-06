@@ -50,17 +50,15 @@ def _get_host_env():
 def _try_run(command: list[str], env: dict) -> bool:
     """Run a command and return True if it likely launched successfully."""
     try:
-        result = subprocess.run(
+        # Use Popen instead of run to avoid waiting for process exit
+        subprocess.Popen(
             command,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             close_fds=True,
             start_new_session=True,
             env=env,
-            timeout=3,
         )
-        return result.returncode == 0
-    except subprocess.TimeoutExpired:
         return True
     except FileNotFoundError:
         return False
@@ -151,6 +149,7 @@ def open_file_with_player(file_path: str, player_path: str | None = None) -> Non
     """
     abs_path = str(Path(file_path).resolve())
     system = platform.system()
+    env = _get_host_env()
     
     try:
         if player_path is None:
@@ -160,10 +159,24 @@ def open_file_with_player(file_path: str, player_path: str | None = None) -> Non
                                stderr=subprocess.DEVNULL, close_fds=True)
             elif system == "Windows":
                 os.startfile(abs_path)
-            else:  # Linux
-                subprocess.Popen(["xdg-open", abs_path], stdout=subprocess.DEVNULL, 
-                               stderr=subprocess.DEVNULL, close_fds=True, 
-                               start_new_session=True, env=_get_host_env())
+            else:  # Linux - try common music players first, then xdg-open
+                # Try common music players to avoid browser opening files
+                players_to_try = [
+                    ["vlc", abs_path],
+                    ["mpv", abs_path],
+                    ["ffplay", abs_path],
+                    ["gnome-music", abs_path],
+                    ["totem", abs_path],
+                    ["rhythmbox", abs_path],
+                    ["audacious", abs_path],
+                    ["clementine", abs_path],
+                    ["xdg-open", abs_path],  # Last resort
+                ]
+                
+                for cmd in players_to_try:
+                    if shutil.which(cmd[0]):
+                        _try_run(cmd, env)
+                        return
         else:
             # Use specified player
             if system == "Darwin" and player_path.endswith(".app"):
@@ -176,10 +189,7 @@ def open_file_with_player(file_path: str, player_path: str | None = None) -> Non
                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, 
                                close_fds=True)
             else:  # Linux
-                subprocess.Popen([player_path, abs_path], 
-                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, 
-                               close_fds=True, start_new_session=True,
-                               env=_get_host_env())
+                _try_run([player_path, abs_path], env)
     except Exception as e:
         raise Exception(f"Failed to open file with player: {e}")
 
@@ -214,32 +224,26 @@ def open_folder_with_file_manager(folder_path: str, file_to_select: str = None) 
                                env=os.environ.copy())
             else:  # Linux and other Unix-like systems
                 # Try file managers in order of preference
-                # Use only regular file paths (not URIs) to avoid browser opening
+                # IMPORTANT: Use direct file manager calls, NOT xdg-open (can default to browser in AppImage)
                 env = _get_host_env()
                 parent_folder = str(Path(abs_file_path).parent)
 
-                # Try file managers with --select option first
-                if shutil.which("nautilus"):
-                    # Try with regular path first
-                    if _try_run(["nautilus", parent_folder], env):
-                        return
-                if shutil.which("nemo"):
-                    if _try_run(["nemo", parent_folder], env):
-                        return
-                if shutil.which("dolphin"):
-                    if _try_run(["dolphin", "--select", abs_file_path], env):
-                        return
-                if shutil.which("thunar"):
-                    if _try_run(["thunar", parent_folder], env):
-                        return
-                if shutil.which("caja"):  # MATE file manager
-                    if _try_run(["caja", parent_folder], env):
-                        return
-                if shutil.which("pcmanfm"):
-                    if _try_run(["pcmanfm", parent_folder], env):
-                        return
+                # Try file managers in priority order
+                managers_to_try = [
+                    ("nautilus", ["nautilus", parent_folder]),
+                    ("nemo", ["nemo", parent_folder]),
+                    ("dolphin", ["dolphin", "--select", abs_file_path]),
+                    ("caja", ["caja", parent_folder]),
+                    ("thunar", ["thunar", parent_folder]),
+                    ("pcmanfm", ["pcmanfm", parent_folder]),
+                ]
+                
+                for manager_name, command in managers_to_try:
+                    if shutil.which(manager_name):
+                        if _try_run(command, env):
+                            return
 
-                # Try xdg-open as last resort (parent folder only, not URI)
+                # Only use xdg-open as absolute last resort
                 _try_run(["xdg-open", parent_folder], env)
         else:
             # Just open folder
