@@ -37,6 +37,172 @@ logger = logging.getLogger(__name__)
 console = Console()
 
 
+def _get_numeric_value(value_str: str) -> float:
+    """Extract numeric value from string."""
+    try:
+        return float(value_str)
+    except ValueError:
+        value_str = str(value_str).strip()
+        if "/" in value_str:
+            try:
+                return float(value_str.split("/")[0].strip())
+            except ValueError:
+                return float('nan')
+        return float('nan')
+
+
+def _apply_advanced_filter(files: list, query: str, file_manager) -> list:
+    """Apply advanced search filters to files (matches UI search syntax).
+    
+    Supported operators:
+    - title=keyword - Contains keyword
+    - artist=Lady - Contains keyword
+    - version=latest - Latest version only
+    - version>2 - Greater than
+    - version>=2 - Greater or equal
+    - version<3 - Less than
+    - version<=3 - Less or equal
+    - version==2 - Exact match
+    - version!=1 - Not equal
+    - title="Exact" - Exact phrase (quoted)
+    """
+    import re
+    
+    filtered = []
+    query = query.strip()
+    
+    if not query:
+        return files
+    
+    for file_data in files:
+        match = False
+        
+        # Check for advanced operators (order matters - check longer operators first)
+        if "!=" in query:
+            parts = query.split("!=", 1)
+            if len(parts) == 2:
+                search_field, search_value = parts[0].strip().lower(), parts[1].strip().strip('"\'')
+                
+                # Special handling for version=latest
+                if search_field == "version" and search_value.lower() in {"latest", "not latest", "not_latest"}:
+                    want_latest = (search_value.lower() == "latest")
+                    song_id = f"{file_data.get(MetadataFields.TITLE, '')}|{file_data.get(MetadataFields.ARTIST, '')}|{file_data.get(MetadataFields.COVER_ARTIST, '')}"
+                    version = float(file_data.get(MetadataFields.VERSION, 0) or 0)
+                    is_latest = file_manager.is_latest_version(song_id, version)
+                    match = is_latest != want_latest
+                else:
+                    for key, value in file_data.items():
+                        if search_field in key.lower():
+                            if str(value).lower() != search_value.lower():
+                                match = True
+                                break
+        
+        elif "==" in query:
+            parts = query.split("==", 1)
+            if len(parts) == 2:
+                search_field = parts[0].strip().lower()
+                search_value = parts[1].strip().strip('"\'')
+                
+                if search_field == "version" and search_value.lower() in {"latest", "not latest", "not_latest"}:
+                    want_latest = (search_value.lower() == "latest")
+                    song_id = f"{file_data.get(MetadataFields.TITLE, '')}|{file_data.get(MetadataFields.ARTIST, '')}|{file_data.get(MetadataFields.COVER_ARTIST, '')}"
+                    version = float(file_data.get(MetadataFields.VERSION, 0) or 0)
+                    is_latest = file_manager.is_latest_version(song_id, version)
+                    match = is_latest == want_latest
+                else:
+                    for key, value in file_data.items():
+                        if search_field in key.lower():
+                            if str(value).lower() == search_value.lower():
+                                match = True
+                                break
+        
+        elif ">=" in query:
+            parts = query.split(">=", 1)
+            if len(parts) == 2:
+                search_field, search_value = parts[0].strip().lower(), parts[1].strip()
+                for key, value in file_data.items():
+                    if search_field in key.lower():
+                        try:
+                            if _get_numeric_value(str(value)) >= float(search_value):
+                                match = True
+                                break
+                        except ValueError:
+                            pass
+        
+        elif "<=" in query:
+            parts = query.split("<=", 1)
+            if len(parts) == 2:
+                search_field, search_value = parts[0].strip().lower(), parts[1].strip()
+                for key, value in file_data.items():
+                    if search_field in key.lower():
+                        try:
+                            if _get_numeric_value(str(value)) <= float(search_value):
+                                match = True
+                                break
+                        except ValueError:
+                            pass
+        
+        elif ">" in query:
+            parts = query.split(">", 1)
+            if len(parts) == 2:
+                search_field, search_value = parts[0].strip().lower(), parts[1].strip()
+                for key, value in file_data.items():
+                    if search_field in key.lower():
+                        try:
+                            if _get_numeric_value(str(value)) > float(search_value):
+                                match = True
+                                break
+                        except ValueError:
+                            pass
+        
+        elif "<" in query:
+            parts = query.split("<", 1)
+            if len(parts) == 2:
+                search_field, search_value = parts[0].strip().lower(), parts[1].strip()
+                for key, value in file_data.items():
+                    if search_field in key.lower():
+                        try:
+                            if _get_numeric_value(str(value)) < float(search_value):
+                                match = True
+                                break
+                        except ValueError:
+                            pass
+        
+        elif "=" in query:
+            parts = query.split("=", 1)
+            if len(parts) == 2:
+                search_field = parts[0].strip().lower()
+                search_value = parts[1].strip().strip('"\'')
+                
+                if search_field == "version" and search_value.lower() in {"latest", "not latest", "not_latest", "notlatest"}:
+                    want_latest = (search_value.lower() == "latest")
+                    song_id = f"{file_data.get(MetadataFields.TITLE, '')}|{file_data.get(MetadataFields.ARTIST, '')}|{file_data.get(MetadataFields.COVER_ARTIST, '')}"
+                    version = float(file_data.get(MetadataFields.VERSION, 0) or 0)
+                    is_latest = file_manager.is_latest_version(song_id, version)
+                    match = is_latest == want_latest
+                else:
+                    for key, value in file_data.items():
+                        if search_field in key.lower():
+                            if search_value.lower() in str(value).lower():
+                                match = True
+                                break
+        
+        else:
+            # Simple text search across multiple fields
+            query_lower = query.lower()
+            search_fields = [MetadataFields.TITLE, MetadataFields.ARTIST, MetadataFields.COVER_ARTIST, MetadataFields.SPECIAL, MetadataFields.VERSION]
+            
+            for field in search_fields:
+                if query_lower in str(file_data.get(field, "")).lower():
+                    match = True
+                    break
+        
+        if match:
+            filtered.append(file_data)
+    
+    return filtered
+
+
 @click.group()
 @click.version_option(version="2.0.0")
 def cli() -> None:
@@ -95,9 +261,22 @@ def scan(folder: str, limit: Optional[int] = None) -> None:
 @click.argument("folder", type=click.Path(exists=True, file_okay=False, dir_okay=True))
 @click.argument("preset_name")
 @click.option("--dry-run", is_flag=True, help="Show what would be done without making changes")
-@click.option("--filter", "-f", default=None, help="Filter files (search query)")
+@click.option("--filter", "-f", default=None, help="Filter files using advanced search syntax (e.g., 'version>=2', 'artist=Neuro', 'version=latest')")
 def apply(folder: str, preset_name: str, dry_run: bool = False, filter: Optional[str] = None) -> None:
-    """Apply a preset to files in a folder."""
+    """Apply a preset to files in a folder.
+    
+    Advanced search filters:
+    - title=keyword - Search in title
+    - artist=Neuro - Search by artist
+    - version>=2 - Version comparison (>, <, >=, <=, ==, !=)
+    - version=latest - Only latest versions
+    - title="Exact" - Quoted strings for exact match
+    
+    Examples:
+        df-metadata-customizer apply ./songs Default
+        df-metadata-customizer apply ./songs Default --filter "version>2"
+        df-metadata-customizer apply ./songs Default -f "artist=Lady"
+    """
     try:
         SettingsManager.initialize()
         preset_service = PresetService(SettingsManager.get_presets_folder())
@@ -120,10 +299,11 @@ def apply(folder: str, preset_name: str, dry_run: bool = False, filter: Optional
         files = file_manager.get_all_files()
         console.print(f"✅ Found {len(files)} files")
         
-        # Filter if needed
+        # Filter if needed using advanced search syntax
         if filter:
-            console.print(f"🔍 Filtering with: {filter}")
-            # TODO: Implement filtering
+            console.print(f"🔍 Filtering with: [bold]{filter}[/bold]")
+            files = _apply_advanced_filter(files, filter, file_manager)
+            console.print(f"✅ Filtered to {len(files)} matching files")
         
         # Apply preset
         applied_count = 0

@@ -200,6 +200,7 @@ class SongEditorManager:
 
         # Top: Editor
         editor_panel = QFrame()
+        editor_panel.setMinimumHeight(250)  # Prevent complete collapse
         editor_layout = QVBoxLayout(editor_panel)
         editor_layout.setContentsMargins(0, 0, 0, 0)
         editor_layout.setSpacing(8)
@@ -288,6 +289,7 @@ class SongEditorManager:
 
         # Bottom: Pending list
         pending_panel = QFrame()
+        pending_panel.setMinimumHeight(150)  # Prevent complete collapse
         pending_layout = QVBoxLayout(pending_panel)
         pending_layout.setContentsMargins(0, 0, 0, 0)
         pending_layout.setSpacing(6)
