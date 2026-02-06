@@ -4,9 +4,8 @@
 
 A powerful metadata management tool designed specifically for Neuro-sama and Evil Neuro cover song archives. This application helps standardize ID3 tags across large collections, extract embedded JSON metadata, and apply consistent formatting rules - making your cover song library organized and player-friendly.
 
-![Screenshot](assets/mainscreen_dark3.png)
-![Screenshot](assets/mainscreen_light3.png)
-![Screenshot](assets/song_statistics2.png)
+![Screenshot](assets/mainscreen1.png)
+![Screenshot](assets/mainscreen2.png)
 
 ## 🎵 What This Tool Does
 
@@ -40,11 +39,9 @@ A powerful metadata management tool designed specifically for Neuro-sama and Evi
 - 🔢 **Multi-Level Sorting** - Sort by up to 5 different fields with ascending/descending options (collapsible UI)
 - ▶️ **Direct Playback** - Double-click to play songs in your default player
 - 📝 **JSON Editor** - Edit JSON metadata directly in the app with validation
-- ✏️ **File Renaming** - Rename audio files directly from the interface
-- 🔍 **Enhanced Search** - Version=latest filter and improved search operators
-- 🖱️ **Click-Outside Dismiss** - Close popup dialogs by clicking outside them (Wayland/X11 compatible)
-- 🎨 **Modern Theming** - VS Code-inspired dark/light themes with consistent color palette
-- 🔄 **Audio Content Hashing** - Compare raw audio data to detect duplicates regardless of metadata
+- ✏️ **File Renaming** - Rename MP3 files directly from the interface
+- 🔍 **Enhanced Search Filtering** - Version=latest filter and improved search operators
+- 🔍 **New Song Adding** - Currently wip...
 
 ## Installation
 
@@ -127,6 +124,7 @@ Download [Neuro Karaoke Archive V3](https://drive.google.com/drive/folders/1B1Va
 - Neuro & Evil Duets (unique/total)
 - Other songs (Neuro & Vedal, etc.)
 
+![Screenshot](assets/statistics.png)
 </details>
 
 <details>
@@ -141,6 +139,7 @@ Add up to 5 sort rules with custom priorities:
 - Each sort can be ascending or descending
 - Rules can be reordered using up/down arrows
 
+![Screenshot](assets/sorting.png)
 </details>
 
 <details>
@@ -154,6 +153,13 @@ Use operators for precise filtering:
 - special=1 - Special tagged songs only
 - Combine with free text: neuro evil (finds songs containing both words)
 
+![Screenshot](assets/search_ex1.png)
+![Screenshot](assets/search_ex2.png)
+![Screenshot](assets/search_ex3.png)
+![Screenshot](assets/search_ex4.png)
+![Screenshot](assets/search_ex5.png)
+![Screenshot](assets/search_ex6.png)
+![Screenshot](assets/search_ex7.png)
 </details>
 
 <details>
@@ -164,6 +170,8 @@ Use operators for precise filtering:
 - Special operators: "is latest version", "is not latest version"
 - Template fields: {Title}, {Artist}, {CoverArtist}, {Version}, etc.
 
+![Screenshot](assets/rules_options1.png)
+![Screenshot](assets/rules_options2.png)
 </details>
 
 <details>
@@ -202,6 +210,14 @@ The app expects audio files to contain JSON in their comment field (example):
 
 </details>
 
+<details>
+<summary>📂 New Song Adding</summary>
+
+- Experimental feature, not fully refined.
+- Can add new songs and edit the metadatas
+
+</details>
+
 ## 🔧 Technical Details
 
 ### Requirements
@@ -231,3 +247,4 @@ Please use the [GitHub Issues](https://github.com/gamerturuu/df-metadata-customi
 ## License
 
 This project is licensed under the MIT License.
+
