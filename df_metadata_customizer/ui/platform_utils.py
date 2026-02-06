@@ -152,51 +152,49 @@ def open_folder_with_file_manager(folder_path: str, file_to_select: str = None) 
                                shell=True,
                                env=os.environ.copy())
             else:  # Linux and other Unix-like systems
-                # Try nautilus first, fallback to other options
-                abs_file_path_safe = abs_file_path.replace('"', '\\"')
+                # Try file managers in order of preference
+                # Use list arguments instead of shell=True for better Wayland compatibility
                 
                 if shutil.which("nautilus"):
-                    subprocess.Popen(f'nautilus --select "{abs_file_path_safe}"',
+                    # GNOME Files (Nautilus) - proper URI format for Wayland
+                    file_uri = Path(abs_file_path).as_uri()
+                    subprocess.Popen(["nautilus", "--select", file_uri],
                                    stdout=subprocess.DEVNULL, 
                                    stderr=subprocess.DEVNULL, 
                                    close_fds=True, 
-                                   start_new_session=True,
-                                   shell=True,
-                                   env=os.environ.copy())
+                                   start_new_session=True)
                 elif shutil.which("nemo"):  # Cinnamon file manager
-                    subprocess.Popen(f'nemo --select "{abs_file_path_safe}"',
+                    subprocess.Popen(["nemo", "--select", abs_file_path],
                                    stdout=subprocess.DEVNULL, 
                                    stderr=subprocess.DEVNULL, 
                                    close_fds=True, 
-                                   start_new_session=True,
-                                   shell=True,
-                                   env=os.environ.copy())
+                                   start_new_session=True)
                 elif shutil.which("dolphin"):  # KDE file manager
-                    subprocess.Popen(f'dolphin --select "{abs_file_path_safe}"',
+                    subprocess.Popen(["dolphin", "--select", abs_file_path],
                                    stdout=subprocess.DEVNULL, 
                                    stderr=subprocess.DEVNULL, 
                                    close_fds=True, 
-                                   start_new_session=True,
-                                   shell=True,
-                                   env=os.environ.copy())
+                                   start_new_session=True)
                 elif shutil.which("thunar"):  # XFCE file manager
-                    subprocess.Popen(f'thunar "{Path(abs_file_path).parent}"',
+                    subprocess.Popen(["thunar", str(Path(abs_file_path).parent)],
                                    stdout=subprocess.DEVNULL, 
                                    stderr=subprocess.DEVNULL, 
                                    close_fds=True, 
-                                   start_new_session=True,
-                                   shell=True,
-                                   env=os.environ.copy())
+                                   start_new_session=True)
+                elif shutil.which("pcmanfm"):  # LXDE file manager
+                    subprocess.Popen(["pcmanfm", str(Path(abs_file_path).parent)],
+                                   stdout=subprocess.DEVNULL, 
+                                   stderr=subprocess.DEVNULL, 
+                                   close_fds=True, 
+                                   start_new_session=True)
                 else:
-                    # Fallback: use xdg-open
+                    # Fallback: use xdg-open on parent folder
                     folder = str(Path(abs_file_path).parent)
-                    subprocess.Popen(f'xdg-open "{folder}"', 
+                    subprocess.Popen(["xdg-open", folder], 
                                    stdout=subprocess.DEVNULL, 
                                    stderr=subprocess.DEVNULL, 
                                    close_fds=True, 
-                                   start_new_session=True,
-                                   shell=True,
-                                   env=os.environ.copy())
+                                   start_new_session=True)
         else:
             # Just open folder
             abs_path = str(Path(folder_path).resolve())
@@ -214,13 +212,11 @@ def open_folder_with_file_manager(folder_path: str, file_to_select: str = None) 
                                shell=True,
                                env=os.environ.copy())
             else:  # Linux and other Unix-like systems
-                # Use shell=True for better environment handling in compiled apps
-                subprocess.Popen(f'xdg-open "{abs_path}"',
+                # Use argument list for better Wayland compatibility
+                subprocess.Popen(["xdg-open", abs_path],
                                stdout=subprocess.DEVNULL, 
                                stderr=subprocess.DEVNULL, 
                                close_fds=True, 
-                               start_new_session=True,
-                               shell=True,
-                               env=os.environ.copy())
+                               start_new_session=True)
     except Exception as e:
         raise Exception(f"Failed to open folder: {e}")
