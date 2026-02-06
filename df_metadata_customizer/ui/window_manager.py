@@ -47,7 +47,8 @@ class WindowManager:
             self.window,
             "About DF Metadata Customizer",
             "DF Metadata Customizer v2.0.0\n"
-            "MP3 Metadata Editor\n\n"
+            "Audio Metadata Editor\n"
+            "Supports: MP3, FLAC, OGG, M4A, WAV, OPUS\n\n"
             "A powerful tool for managing cover song collections with:\n"
             "• Rule-based metadata editing\n"
             "• Multi-level sorting (up to 5 fields)\n"

@@ -31,7 +31,8 @@ def main() -> None:
 def print_help() -> None:
     """Print help message."""
     print("""
-Database Formatter - MP3 Metadata Customizer
+Database Formatter - Audio Metadata Customizer
+Supports: MP3, FLAC, OGG, M4A, WAV, OPUS
 
 Usage:
   python -m df_metadata_customizer [COMMAND]

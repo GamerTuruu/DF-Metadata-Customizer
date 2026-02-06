@@ -21,7 +21,7 @@ class RuleOperator(str, Enum):
 
 @dataclass
 class SongMetadataModel:
-    """Represents MP3 metadata for a song."""
+    """Represents audio file metadata for a song."""
 
     file_path: Path
     title: Optional[str] = None

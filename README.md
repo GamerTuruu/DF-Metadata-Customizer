@@ -1,6 +1,6 @@
 # Database Reformatter — Metadata Customizer
 
-> **Fan Tool Disclaimer**: This application is created by and for fans to help organize cover song collections. It only manages MP3 metadata and does not include any copyrighted content. Users must provide their audio files.
+> **Fan Tool Disclaimer**: This application is created by and for fans to help organize cover song collections. It manages audio file metadata (MP3, FLAC, OGG, M4A, WAV, OPUS) and does not include any copyrighted content. Users must provide their audio files.
 
 A powerful metadata management tool designed specifically for Neuro-sama and Evil Neuro cover song archives. This application helps standardize ID3 tags across large collections, extract embedded JSON metadata, and apply consistent formatting rules - making your cover song library organized and player-friendly.
 
@@ -10,7 +10,7 @@ A powerful metadata management tool designed specifically for Neuro-sama and Evi
 
 ## 🎵 What This Tool Does
 
-- Reads existing metadata from your MP3 files
+- Reads existing metadata from your audio files (MP3, FLAC, OGG, M4A, WAV, OPUS)
 - Applies custom formatting rules to ID3 tags
 - Helps maintain consistent naming across collections
 - Manages multiple versions of the same cover
@@ -29,10 +29,10 @@ A powerful metadata management tool designed specifically for Neuro-sama and Evi
 
 ### Core Features
 
-- 🎵 **MP3 Metadata Editing** - Read/write ID3 tags
+- 🎵 **Audio Metadata Editing** - Read/write tags for MP3, FLAC, OGG, M4A, WAV, OPUS
 - 📝 **Rule-Based Tagging** - Conditional rules for automatic metadata generation
-- 🔍 **JSON in Comments** - Extract metadata from MP3 comment fields
-- 🖼️ **Cover Art** - Display and manage album artwork
+- 🔍 **JSON in Comments** - Extract metadata from audio file comment fields
+- 🖼️ **Cover Art** - Display and manage album artwork (MP3, FLAC, M4A, OGG, OPUS)
 - 📚 **Version Management** - Track different versions of songs
 - 💾 **Preset System** - Save and load rule configurations
 - 🚀 **Batch Processing** - Apply changes to multiple files
@@ -40,7 +40,7 @@ A powerful metadata management tool designed specifically for Neuro-sama and Evi
 - 🔢 **Multi-Level Sorting** - Sort by up to 5 different fields with ascending/descending options (collapsible UI)
 - ▶️ **Direct Playback** - Double-click to play songs in your default player
 - 📝 **JSON Editor** - Edit JSON metadata directly in the app with validation
-- ✏️ **File Renaming** - Rename MP3 files directly from the interface
+- ✏️ **File Renaming** - Rename audio files directly from the interface
 - 🔍 **Enhanced Search** - Version=latest filter and improved search operators
 - 🖱️ **Click-Outside Dismiss** - Close popup dialogs by clicking outside them (Wayland/X11 compatible)
 - 🎨 **Modern Theming** - VS Code-inspired dark/light themes with consistent color palette
@@ -84,7 +84,7 @@ This tool is perfect for managing cover songs from:
 - **Evil Neuro** - The chaotic alternative personality
 - **Neuro & Evil Duets** - Collaborative covers
 
-The app reads JSON metadata embedded in MP3 comment fields (common in fan archives) and lets you customize how the tags appear in music players.
+The app reads JSON metadata embedded in audio file comment fields (common in fan archives) and lets you customize how the tags appear in music players. Supports MP3, FLAC, OGG, M4A, WAV, and OPUS formats.
 
 ### Archive download (Google Drive)
 
@@ -96,11 +96,11 @@ Download [Neuro Karaoke Archive V3](https://drive.google.com/drive/folders/1B1Va
 
 📁metadata_presets.json📁 has to be in the same folder as the main app
 
-1. Load Your MP3 Files:
+1. Load Your Audio Files:
    Click "Select Folder" and choose your Neuro-sama cover song folder.
-   The app will scan for MP3 files and extract existing metadata
+   The app will scan for audio files (MP3, FLAC, OGG, M4A, WAV, OPUS) and extract existing metadata
 2. Understand the Data Structure:
-   MP3 files should have JSON metadata in their comment fields
+   Audio files should have JSON metadata in their comment fields
    Typical fields:
 
    ```text
@@ -178,7 +178,7 @@ Use operators for precise filtering:
 <details>
 <summary>🔧 JSON Metadata Format</summary>
 
-The app expects MP3 files to contain JSON in their comment field (example):
+The app expects audio files to contain JSON in their comment field (example):
 
 ```json
 {
@@ -207,7 +207,7 @@ The app expects MP3 files to contain JSON in their comment field (example):
 ### Requirements
 - Python 3.10 - 3.14
 - PySide6 (Qt6) - Modern cross-platform UI framework
-- mutagen - MP3 metadata handling
+- mutagen - Audio metadata handling (MP3, FLAC, OGG, M4A, WAV, OPUS)
 - Pillow (PIL) - Image processing for cover art
 - polars - Fast data processing
 - xxhash - Audio content hashing

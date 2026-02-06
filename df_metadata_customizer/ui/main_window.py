@@ -552,7 +552,7 @@ class MainWindow(QMainWindow):
     
     def open_folder(self):
         """Open folder dialog."""
-        folder = QFileDialog.getExistingDirectory(self, "Select Folder with MP3s")
+        folder = QFileDialog.getExistingDirectory(self, "Select Folder with Audio Files")
         if folder:
             self.load_folder(folder, show_dialogs=True)
     
@@ -1044,7 +1044,7 @@ class MainWindow(QMainWindow):
             self.save_json_btn.setEnabled(True)
     
     def save_json_changes(self):
-        """Save JSON changes to file data and MP3 COMM:ved tag."""
+        """Save JSON changes to file data and audio file metadata."""
         try:
             # Parse the JSON to validate it
             json_text = self.json_editor.toPlainText().strip()
@@ -1060,7 +1060,7 @@ class MainWindow(QMainWindow):
                     QMessageBox.warning(self, "Error", "No file path found")
                     return
                 
-                # Write to actual MP3 file COMM:ved tag (compacted format)
+                # Write to actual audio file metadata tag (compacted format)
                 if not write_json_to_song(file_path, new_data):
                     QMessageBox.critical(self, "Error", "Failed to save JSON to file")
                     return
@@ -1199,7 +1199,8 @@ By Artist:
             self,
             "About DF Metadata Customizer",
             "DF Metadata Customizer v2.0.0\n"
-            "MP3 Metadata Editor\n\n"
+            "Audio Metadata Editor\n"
+            "Supports: MP3, FLAC, OGG, M4A, WAV, OPUS\n\n"
             "A powerful tool for managing cover song collections with:\n"
             "• Rule-based metadata editing\n"
             "• Multi-level sorting (up to 5 fields)\n"

@@ -17,7 +17,8 @@ from tinytag import TinyTag
 
 logger = logging.getLogger(__name__)
 
-SUPPORTED_FILES_TYPES = {".mp3"}
+# Supported audio formats (mutagen and tinytag support)
+SUPPORTED_FILES_TYPES = {".mp3", ".flac", ".ogg", ".m4a", ".wav", ".opus"}
 
 
 def extract_json_from_song(path: str) -> dict | None:
@@ -147,7 +148,7 @@ def write_id3_tags(path: str, metadata: dict) -> bool:
 
 
 def get_cover_art(path: str) -> bytes | None:
-    """Extract cover art from MP3 file."""
+    """Extract cover art from audio file."""
     try:
         tags = ID3(path)
         for frame in tags.values():
@@ -159,7 +160,7 @@ def get_cover_art(path: str) -> bytes | None:
 
 
 def set_cover_art(path: str, image_data: bytes) -> bool:
-    """Set cover art for an MP3 file."""
+    """Set cover art for an audio file."""
     try:
         try:
             tags = ID3(path)

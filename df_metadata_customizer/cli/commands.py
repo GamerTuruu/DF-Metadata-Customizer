@@ -206,9 +206,10 @@ def _apply_advanced_filter(files: list, query: str, file_manager) -> list:
 @click.group()
 @click.version_option(version="2.0.0")
 def cli() -> None:
-    """Database Formatter - MP3 Metadata Customizer CLI.
+    """Database Formatter - Audio Metadata Customizer CLI.
     
-    Powerful tool for managing MP3 metadata and applying presets to cover song collections.
+    Powerful tool for managing audio file metadata and applying presets to cover song collections.
+    Supports: MP3, FLAC, OGG, M4A, WAV, OPUS
     """
     pass
 
@@ -217,7 +218,7 @@ def cli() -> None:
 @click.argument("folder", type=click.Path(exists=True, file_okay=False, dir_okay=True))
 @click.option("--limit", "-l", default=None, type=int, help="Limit number of files to scan")
 def scan(folder: str, limit: Optional[int] = None) -> None:
-    """Scan a folder for MP3 files and display statistics."""
+    """Scan a folder for audio files and display statistics."""
     try:
         console.print(f"\n📁 Scanning folder: [bold]{folder}[/bold]")
         
@@ -231,11 +232,11 @@ def scan(folder: str, limit: Optional[int] = None) -> None:
             console.print(f"(Showing first {limit} of {file_manager.df.height} files)")
         
         if not files:
-            console.print("[yellow]No MP3 files found[/yellow]\n")
+            console.print("[yellow]No audio files found[/yellow]\n")
             return
         
         # Create table
-        table = Table(title=f"Found {len(files)} MP3 Files")
+        table = Table(title=f"Found {len(files)} Audio Files")
         table.add_column("Title", style="cyan")
         table.add_column("Artist", style="magenta")
         table.add_column("Version", style="yellow")

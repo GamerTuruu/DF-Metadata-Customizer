@@ -158,8 +158,8 @@ class SongEditorManager:
         except (ValueError, TypeError):
             return str(value)
 
-    def _generate_filename(self, json_data: dict) -> str:
-        """Generate filename from JSON metadata: {3 padded track}. {Artist} - {Title} ({CoverArtist}.v{Version}).mp3"""
+    def _generate_filename(self, json_data: dict, source_ext: str = ".mp3") -> str:
+        """Generate filename from JSON metadata: {3 padded track}. {Artist} - {Title} ({CoverArtist}.v{Version}).ext"""
         track = json_data.get(MetadataFields.TRACK, "1")
         artist = json_data.get(MetadataFields.ARTIST, "Unknown")
         title = json_data.get(MetadataFields.TITLE, "Untitled")
@@ -183,7 +183,7 @@ class SongEditorManager:
             filename_suffix = f"({cover_artist_safe}.v{version_formatted})"
         else:
             filename_suffix = f"(Duet.v{version_formatted}) ({cover_artist_safe})"
-        filename = f"{track_padded}. {artist_safe} - {title_safe} {filename_suffix}.mp3"
+        filename = f"{track_padded}. {artist_safe} - {title_safe} {filename_suffix}{source_ext}"
         return filename
 
     def create_song_edit_tab(self):
@@ -832,7 +832,10 @@ class SongEditorManager:
         if "Filename" in self.id3_fields:
             filename_field = self.id3_fields["Filename"]
             if isinstance(filename_field, QLabel):
-                filename = self._generate_filename(jsond)
+                # Get source extension, default to .mp3
+                source_path = self._current_source_path()
+                source_ext = Path(source_path).suffix if source_path else ".mp3"
+                filename = self._generate_filename(jsond, source_ext)
                 filename_field.setText(filename)
                 self._set_field_tooltip(filename_field, filename)
         # Update COMM:eng preview
@@ -997,16 +1000,19 @@ class SongEditorManager:
     def add_or_update_pending(self) -> None:
         source_path = self._current_source_path()
         if not source_path:
-            QMessageBox.warning(self.parent, "Missing Source", "Please choose a source MP3 file.")
+            QMessageBox.warning(self.parent, "Missing Source", "Please choose a source audio file.")
             return
 
         json_data = self._collect_json_data()
         id3_data = self._collect_id3_data()
 
+        # Get source file extension
+        source_ext = Path(source_path).suffix if source_path else ".mp3"
+
         entry = {
             "id": self._new_entry_id() if self.current_edit_id is None else self.current_edit_id,
             "source_path": source_path,
-            "filename": self._generate_filename(json_data),
+            "filename": self._generate_filename(json_data, source_ext),
             "json": json_data,
             "id3": id3_data,
             "cover": self._current_cover_bytes,

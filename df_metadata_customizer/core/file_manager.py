@@ -154,7 +154,7 @@ class FileManager:
         return jsond
 
     def load_folder(self, folder_path: str | Path) -> None:
-        """Load all MP3 files from a folder."""
+        """Load all supported audio files from a folder."""
         folder = Path(folder_path)
         if not folder.is_dir():
             logger.error(f"Folder not found: {folder}")
@@ -163,12 +163,16 @@ class FileManager:
         # Clear existing data
         self.clear()
 
-        # Find all MP3 files
-        mp3_files = list(folder.rglob("*.mp3"))
-        logger.info(f"Found {len(mp3_files)} MP3 files in {folder}")
+        # Find all supported audio files
+        from df_metadata_customizer.core.song_utils import SUPPORTED_FILES_TYPES
+        audio_files = []
+        for ext in SUPPORTED_FILES_TYPES:
+            audio_files.extend(folder.rglob(f"*{ext}"))
+        
+        logger.info(f"Found {len(audio_files)} audio files in {folder}")
 
-        for mp3_file in mp3_files:
-            file_path = str(mp3_file.resolve())
+        for audio_file in audio_files:
+            file_path = str(audio_file.resolve())
             json_data = extract_json_from_song(file_path) or {}
             self.update_file_data(file_path, json_data)
 
