@@ -20,10 +20,13 @@ def _get_host_env():
     # AppImage sets APPIMAGE_* variables with original values
     if 'APPIMAGE' in env:
         # Restore original PATH to access host binaries
-        if 'OWD' in env:  # Original Working Directory
-            original_path = env.get('APPIMAGE_ORIGINAL_PATH')
-            if original_path:
-                env['PATH'] = original_path
+        original_path = env.get('APPIMAGE_ORIGINAL_PATH')
+        if original_path:
+            env['PATH'] = original_path
+        else:
+            fallback_path = env.get('PATH', '')
+            if '/usr/bin' not in fallback_path:
+                env['PATH'] = f"/usr/local/bin:/usr/bin:/bin:{fallback_path}"
         
         # Ensure display server variables are set
         for var in ['DISPLAY', 'WAYLAND_DISPLAY', 'XDG_RUNTIME_DIR', 
@@ -32,8 +35,37 @@ def _get_host_env():
             original_var = f'APPIMAGE_ORIGINAL_{var}'
             if original_var in env:
                 env[var] = env[original_var]
+        
+        # Provide a safe default for XDG_RUNTIME_DIR if missing
+        if not env.get('XDG_RUNTIME_DIR'):
+            env['XDG_RUNTIME_DIR'] = f"/run/user/{os.getuid()}"
+        
+        # Provide a default DBus session address if missing
+        if not env.get('DBUS_SESSION_BUS_ADDRESS') and env.get('XDG_RUNTIME_DIR'):
+            env['DBUS_SESSION_BUS_ADDRESS'] = f"unix:path={env['XDG_RUNTIME_DIR']}/bus"
     
     return env
+
+
+def _try_run(command: list[str], env: dict) -> bool:
+    """Run a command and return True if it likely launched successfully."""
+    try:
+        result = subprocess.run(
+            command,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            close_fds=True,
+            start_new_session=True,
+            env=env,
+            timeout=3,
+        )
+        return result.returncode == 0
+    except subprocess.TimeoutExpired:
+        return True
+    except FileNotFoundError:
+        return False
+    except Exception:
+        return False
 
 
 def get_available_players() -> List[Tuple[str, str]]:
@@ -183,53 +215,34 @@ def open_folder_with_file_manager(folder_path: str, file_to_select: str = None) 
             else:  # Linux and other Unix-like systems
                 # Try file managers in order of preference
                 # Use list arguments instead of shell=True for better Wayland compatibility
-                
+                env = _get_host_env()
+                file_uri = Path(abs_file_path).as_uri()
+                parent_folder = str(Path(abs_file_path).parent)
+
                 if shutil.which("nautilus"):
-                    # GNOME Files (Nautilus) - proper URI format for Wayland
-                    file_uri = Path(abs_file_path).as_uri()
-                    subprocess.Popen(["nautilus", "--select", file_uri],
-                                   stdout=subprocess.DEVNULL, 
-                                   stderr=subprocess.DEVNULL, 
-                                   close_fds=True, 
-                                   start_new_session=True,
-                                   env=_get_host_env())
-                elif shutil.which("nemo"):  # Cinnamon file manager
-                    subprocess.Popen(["nemo", "--select", abs_file_path],
-                                   stdout=subprocess.DEVNULL, 
-                                   stderr=subprocess.DEVNULL, 
-                                   close_fds=True, 
-                                   start_new_session=True,
-                                   env=_get_host_env())
-                elif shutil.which("dolphin"):  # KDE file manager
-                    subprocess.Popen(["dolphin", "--select", abs_file_path],
-                                   stdout=subprocess.DEVNULL, 
-                                   stderr=subprocess.DEVNULL, 
-                                   close_fds=True, 
-                                   start_new_session=True,
-                                   env=_get_host_env())
-                elif shutil.which("thunar"):  # XFCE file manager
-                    subprocess.Popen(["thunar", str(Path(abs_file_path).parent)],
-                                   stdout=subprocess.DEVNULL, 
-                                   stderr=subprocess.DEVNULL, 
-                                   close_fds=True, 
-                                   start_new_session=True,
-                                   env=_get_host_env())
-                elif shutil.which("pcmanfm"):  # LXDE file manager
-                    subprocess.Popen(["pcmanfm", str(Path(abs_file_path).parent)],
-                                   stdout=subprocess.DEVNULL, 
-                                   stderr=subprocess.DEVNULL, 
-                                   close_fds=True, 
-                                   start_new_session=True,
-                                   env=_get_host_env())
-                else:
-                    # Fallback: use xdg-open on parent folder
-                    folder = str(Path(abs_file_path).parent)
-                    subprocess.Popen(["xdg-open", folder], 
-                                   stdout=subprocess.DEVNULL, 
-                                   stderr=subprocess.DEVNULL, 
-                                   close_fds=True, 
-                                   start_new_session=True,
-                                   env=_get_host_env())
+                    if _try_run(["nautilus", "--select", abs_file_path], env):
+                        return
+                    if _try_run(["nautilus", "--select", file_uri], env):
+                        return
+                if shutil.which("nemo"):
+                    if _try_run(["nemo", "--select", abs_file_path], env):
+                        return
+                if shutil.which("dolphin"):
+                    if _try_run(["dolphin", "--select", abs_file_path], env):
+                        return
+                if shutil.which("thunar"):
+                    if _try_run(["thunar", parent_folder], env):
+                        return
+                if shutil.which("pcmanfm"):
+                    if _try_run(["pcmanfm", parent_folder], env):
+                        return
+                if shutil.which("gio"):
+                    if _try_run(["gio", "open", parent_folder], env):
+                        return
+
+                # Fallback: use xdg-open on parent folder
+                if _try_run(["xdg-open", parent_folder], env):
+                    return
         else:
             # Just open folder
             abs_path = str(Path(folder_path).resolve())
@@ -248,11 +261,10 @@ def open_folder_with_file_manager(folder_path: str, file_to_select: str = None) 
                                env=os.environ.copy())
             else:  # Linux and other Unix-like systems
                 # Use argument list for better Wayland compatibility
-                subprocess.Popen(["xdg-open", abs_path],
-                               stdout=subprocess.DEVNULL, 
-                               stderr=subprocess.DEVNULL, 
-                               close_fds=True, 
-                               start_new_session=True,
-                               env=_get_host_env())
+                env = _get_host_env()
+                if _try_run(["xdg-open", abs_path], env):
+                    return
+                if shutil.which("gio"):
+                    _try_run(["gio", "open", abs_path], env)
     except Exception as e:
         raise Exception(f"Failed to open folder: {e}")
