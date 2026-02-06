@@ -4,8 +4,8 @@
 
 A powerful metadata management tool designed specifically for Neuro-sama and Evil Neuro cover song archives. This application helps standardize ID3 tags across large collections, extract embedded JSON metadata, and apply consistent formatting rules - making your cover song library organized and player-friendly.
 
-![Screenshot](assets/mainscreen1.png)
-![Screenshot](assets/mainscreen2.png)
+![Main Screen Light](assets/Main_Screen_Light.png)
+![Main Screen Dark](assets/Main_Screen_Dark.png)
 
 ## 🎵 What This Tool Does
 
@@ -124,7 +124,7 @@ Download [Neuro Karaoke Archive V3](https://drive.google.com/drive/folders/1B1Va
 - Neuro & Evil Duets (unique/total)
 - Other songs (Neuro & Vedal, etc.)
 
-![Screenshot](assets/statistics.png)
+![Song Statistics](assets/statistics.png)
 </details>
 
 <details>
@@ -139,7 +139,7 @@ Add up to 5 sort rules with custom priorities:
 - Each sort can be ascending or descending
 - Rules can be reordered using up/down arrows
 
-![Screenshot](assets/sorting.png)
+![Multi-Level Sorting](assets/Sortings.png)
 </details>
 
 <details>
@@ -153,13 +153,7 @@ Use operators for precise filtering:
 - special=1 - Special tagged songs only
 - Combine with free text: neuro evil (finds songs containing both words)
 
-![Screenshot](assets/search_ex1.png)
-![Screenshot](assets/search_ex2.png)
-![Screenshot](assets/search_ex3.png)
-![Screenshot](assets/search_ex4.png)
-![Screenshot](assets/search_ex5.png)
-![Screenshot](assets/search_ex6.png)
-![Screenshot](assets/search_ex7.png)
+
 </details>
 
 <details>
@@ -169,9 +163,6 @@ Use operators for precise filtering:
 - Use "AND"/"OR" logic for complex conditions
 - Special operators: "is latest version", "is not latest version"
 - Template fields: {Title}, {Artist}, {CoverArtist}, {Version}, etc.
-
-![Screenshot](assets/rules_options1.png)
-![Screenshot](assets/rules_options2.png)
 </details>
 
 <details>
@@ -181,6 +172,8 @@ Use operators for precise filtering:
 - Edit JSON metadata directly with validation
 - Presets are saved in individual files in the "presets" folder
 
+![Song Editor](assets/song_edit.png)
+![Song Editor 2](assets/song_edit2.png)
 </details>
 
 <details>
