@@ -39,19 +39,21 @@ class SortControlsManager:
         header_layout.setSpacing(6)
         
         # Toggle button
-        self.toggle_btn = QPushButton("▶")
-        self.toggle_btn.setFixedSize(28, 28)
+        self.toggle_btn = QPushButton("▶ Sort")
+        self.toggle_btn.setMinimumWidth(70)
+        self.toggle_btn.setMaximumWidth(80)
         self.toggle_btn.clicked.connect(self._toggle_expanded)
         self.toggle_btn.setToolTip("Collapse/Expand sort controls")
-        self.toggle_btn.setStyleSheet("QPushButton { font-weight: bold; font-size: 12px; }")
+        self.toggle_btn.setStyleSheet("QPushButton { font-weight: bold; font-size: 11px; }")
         header_layout.addWidget(self.toggle_btn)
         
         # Add button - moved next to toggle for better visibility
-        self.add_sort_btn = QPushButton("+")
-        self.add_sort_btn.setFixedSize(28, 28)
+        self.add_sort_btn = QPushButton("+ Add Level")
+        self.add_sort_btn.setMinimumWidth(90)
+        self.add_sort_btn.setMaximumWidth(110)
         self.add_sort_btn.clicked.connect(self.add_sort_rule)
         self.add_sort_btn.setToolTip("Add another sort level (max 5)")
-        self.add_sort_btn.setStyleSheet("QPushButton { font-weight: bold; font-size: 14px; }")
+        self.add_sort_btn.setStyleSheet("QPushButton { font-weight: bold; font-size: 11px; }")
         header_layout.addWidget(self.add_sort_btn)
         
         # Summary label
@@ -94,7 +96,7 @@ class SortControlsManager:
         """Toggle the expanded/collapsed state."""
         self.expanded = not self.expanded
         self.details_container.setVisible(self.expanded)
-        self.toggle_btn.setText("▼" if self.expanded else "▶")
+        self.toggle_btn.setText("▼ Sort" if self.expanded else "▶ Sort")
     
     def _update_summary(self):
         """Update the summary label to show current sort configuration."""
