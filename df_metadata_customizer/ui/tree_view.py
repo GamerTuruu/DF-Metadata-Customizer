@@ -272,6 +272,12 @@ class TreeViewManager:
         
         menu.addSeparator()
         
+        # Cover art management
+        action = menu.addAction("🖼️ Change Cover Art")
+        action.triggered.connect(lambda: self.change_cover_art())
+        
+        menu.addSeparator()
+        
         # Go to file location
         action = menu.addAction("Go to File Location")
         action.triggered.connect(lambda: self.goto_file_location(item))
@@ -422,6 +428,11 @@ class TreeViewManager:
         clipboard.setText(metadata_text)
         
         QMessageBox.information(self.parent, "Success", f"Metadata for {len(items)} songs copied!")
+    
+    def change_cover_art(self):
+        """Change cover art for selected songs."""
+        if hasattr(self.parent, "cover_manager"):
+            self.parent.cover_manager.change_cover_image()
     
     def goto_file_location(self, item):
         """Open file location in file manager and select the file."""

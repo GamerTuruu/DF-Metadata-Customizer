@@ -19,6 +19,7 @@ from PySide6.QtGui import QIcon, QPalette, QColor, QFont
 from df_metadata_customizer.core import FileManager, SettingsManager, PresetService, RuleManager
 from df_metadata_customizer.core.metadata import MetadataFields
 from df_metadata_customizer.core.song_utils import write_json_to_song
+from df_metadata_customizer.core.error_logger import ErrorLogger
 from df_metadata_customizer.ui.progress_dialog import ProgressDialog
 from df_metadata_customizer.ui.menu_bar import setup_menubar
 from df_metadata_customizer.ui.song_controls import create_song_controls
@@ -1249,6 +1250,26 @@ By Artist:
         
         layout.addWidget(auto_group)
         
+        # Error logging section
+        logging_group = QFrame()
+        logging_group.setStyleSheet(f"QFrame {{ background-color: {c['bg_tertiary']}; border-radius: 4px; padding: 10px; }}")
+        logging_layout = QVBoxLayout(logging_group)
+        
+        logging_label = QLabel("Error Logging")
+        logging_label.setStyleSheet("font-weight: bold; font-size: 11pt;")
+        logging_layout.addWidget(logging_label)
+        
+        error_logging_check = QCheckBox("Enable error logging to file")
+        error_logging_check.setChecked(SettingsManager.get_error_logging_enabled())
+        logging_layout.addWidget(error_logging_check)
+        
+        log_info = QLabel("Logs errors to error.log in the app directory")
+        log_info.setStyleSheet(f"color: {c['text_secondary']}; font-size: 9pt;")
+        log_info.setWordWrap(True)
+        logging_layout.addWidget(log_info)
+        
+        layout.addWidget(logging_group)
+        
         # Theme selection section
         theme_group = QFrame()
         theme_group.setStyleSheet(f"QFrame {{ background-color: {c['bg_tertiary']}; border-radius: 4px; padding: 10px; }}")
@@ -1330,7 +1351,7 @@ By Artist:
         
         save_btn = QPushButton("Save")
         save_btn.setFixedWidth(80)
-        save_btn.clicked.connect(lambda: self._save_preferences(dialog, auto_check.isChecked(), theme_combo.currentText(), scale_spin.value()))
+        save_btn.clicked.connect(lambda: self._save_preferences(dialog, auto_check.isChecked(), theme_combo.currentText(), scale_spin.value(), error_logging_check.isChecked()))
         btn_layout.addWidget(save_btn)
         
         cancel_btn = QPushButton("Cancel")
@@ -1342,7 +1363,7 @@ By Artist:
         
         dialog.exec()
     
-    def _save_preferences(self, dialog, auto_reopen, theme, ui_scale):
+    def _save_preferences(self, dialog, auto_reopen, theme, ui_scale, error_logging=True):
         """Save preferences."""
         old_ui_scale = SettingsManager.ui_scale
         SettingsManager.auto_reopen_last_folder = auto_reopen
@@ -1350,6 +1371,11 @@ By Artist:
         SettingsManager.theme = theme.lower()
         SettingsManager.follow_system_theme = SettingsManager.theme == "system"
         SettingsManager.ui_scale = ui_scale
+        SettingsManager.set_error_logging_enabled(error_logging)
+        
+        # Update ErrorLogger state
+        ErrorLogger.set_enabled(error_logging, SettingsManager.get_base_dir())
+        
         SettingsManager.save_settings()
         self._apply_theme_from_system()
         
@@ -1579,7 +1605,15 @@ def main():
     # Set UI scale BEFORE creating QApplication
     import os
     from df_metadata_customizer.core.settings_manager import SettingsManager
+    from df_metadata_customizer.core.error_logger import ErrorLogger
+    
     SettingsManager.initialize()
+    
+    # Initialize error logger
+    log_dir = SettingsManager.get_base_dir()
+    error_logging_enabled = SettingsManager.get_error_logging_enabled()
+    ErrorLogger.initialize(log_dir, enabled=error_logging_enabled)
+    
     ui_scale = SettingsManager.ui_scale
     if ui_scale != 1.0:
         os.environ['QT_SCALE_FACTOR'] = str(ui_scale)
