@@ -1601,9 +1601,9 @@ class SongEditorManager:
 
             output_path = str(Path(out_dir) / filename)
             try:
-                remux_song(source_path, output_path)
-                if not Path(output_path).exists():
-                    errors.append(f"Remux failed: {filename}")
+                success, error_msg = remux_song(source_path, output_path)
+                if not success:
+                    errors.append(f"Remux failed: {filename} - {error_msg}")
                     continue
 
                 json_data = dict(entry.get("json", {}))

@@ -31,6 +31,7 @@ class SettingsManager:
     splitter_sizes: ClassVar[list[int]] = []
     sort_rules: ClassVar[list[tuple]] = [("Title", True)]  # List of (field, ascending) tuples
     default_player: ClassVar[str | None] = None  # Path or command to use for playing files
+    error_logging_enabled: ClassVar[bool] = True  # Enable/disable error logging to file
 
     @classmethod
     def initialize(cls) -> None:
@@ -94,6 +95,7 @@ class SettingsManager:
             "splitter_sizes": cls.splitter_sizes,
             "sort_rules": cls.sort_rules,
             "default_player": cls.default_player,
+            "error_logging_enabled": cls.error_logging_enabled,
         }
         try:
             with cls.get_settings_path().open("w", encoding="utf-8") as f:
@@ -127,6 +129,7 @@ class SettingsManager:
             sort_rules_data = data.get("sort_rules", [("Title", True)])
             cls.sort_rules = [tuple(rule) if isinstance(rule, list) else rule for rule in sort_rules_data]
             cls.default_player = data.get("default_player")
+            cls.error_logging_enabled = data.get("error_logging_enabled", True)
         except Exception:
             logger.exception("Error loading settings")
 
@@ -170,3 +173,14 @@ class SettingsManager:
         except Exception:
             logger.exception(f"Error deleting preset: {preset_name}")
             return False
+    
+    @classmethod
+    def get_error_logging_enabled(cls) -> bool:
+        """Get error logging enabled status."""
+        return cls.error_logging_enabled
+    
+    @classmethod
+    def set_error_logging_enabled(cls, enabled: bool) -> None:
+        """Set error logging enabled status."""
+        cls.error_logging_enabled = enabled
+        cls.save_settings()

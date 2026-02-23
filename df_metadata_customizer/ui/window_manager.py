@@ -11,6 +11,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QIcon, QFont
 
 from df_metadata_customizer.core import SettingsManager
+from df_metadata_customizer.core.error_logger import ErrorLogger
 from df_metadata_customizer.ui.rule_widgets import NoScrollComboBox
 from df_metadata_customizer.ui.styles import get_theme_colors
 
@@ -107,6 +108,16 @@ class WindowManager:
         auto_reopen.setChecked(SettingsManager.get_auto_reopen_folder(True))
         layout.addWidget(auto_reopen)
         
+        # Error logging toggle
+        error_logging = QCheckBox("Enable error logging to file")
+        error_logging.setChecked(SettingsManager.get_error_logging_enabled())
+        layout.addWidget(error_logging)
+        
+        # Add info label for error logging
+        log_info = QLabel("(Logs errors to error.log in the app directory)")
+        log_info.setStyleSheet(f"color: {c['text_secondary']}; font-size: 10px;")
+        layout.addWidget(log_info)
+        
         layout.addStretch()
         
         # Buttons
@@ -117,7 +128,8 @@ class WindowManager:
         
         save_btn.clicked.connect(lambda: self._save_preferences(
             dialog, auto_reopen.isChecked(), 
-            theme_combo.currentText(), scale_spin.value()
+            theme_combo.currentText(), scale_spin.value(),
+            error_logging.isChecked()
         ))
         cancel_btn.clicked.connect(dialog.reject)
         reset_btn.clicked.connect(lambda: self._reset_all_settings(dialog))
@@ -129,11 +141,16 @@ class WindowManager:
         
         dialog.exec()
     
-    def _save_preferences(self, dialog, auto_reopen: bool, theme: str, ui_scale: float):
+    def _save_preferences(self, dialog, auto_reopen: bool, theme: str, ui_scale: float, error_logging: bool):
         """Save preferences."""
         SettingsManager.set_theme(theme)
         SettingsManager.set_ui_scale(ui_scale)
         SettingsManager.set_auto_reopen_folder(auto_reopen)
+        SettingsManager.set_error_logging_enabled(error_logging)
+        
+        # Update ErrorLogger state
+        ErrorLogger.set_enabled(error_logging, SettingsManager.get_base_dir())
+        
         self.window.current_theme = theme
         self.window._apply_theme()
         self.window._apply_ui_scale()
