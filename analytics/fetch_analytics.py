@@ -8,10 +8,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import matplotlib
-import matplotlib.pyplot as plt
-import matplotlib.ticker as ticker
 
 matplotlib.use("Agg")
+
+import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
 
 REPO = "GamerTuruu/DF-Metadata-Customizer"
 API_URL = f"https://api.github.com/repos/{REPO}/releases"
