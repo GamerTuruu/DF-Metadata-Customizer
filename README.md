@@ -1,5 +1,7 @@
 # Database Reformatter — Metadata Customizer
 
+[![Total Downloads](https://img.shields.io/github/downloads/GamerTuruu/DF-Metadata-Customizer/total?style=flat&label=Total%20Downloads&color=0e639c)](https://github.com/GamerTuruu/DF-Metadata-Customizer/releases)
+
 > **Fan Tool Disclaimer**: This application is created by and for fans to help organize cover song collections. It manages audio file metadata (MP3, FLAC, OGG, M4A, WAV, OPUS) and does not include any copyrighted content. Users must provide their audio files.
 
 A powerful metadata management tool designed specifically for Neuro-sama and Evil Neuro cover song archives. This application helps standardize ID3 tags across large collections, extract embedded JSON metadata, and apply consistent formatting rules - making your cover song library organized and player-friendly.
@@ -236,6 +238,23 @@ The app expects audio files to contain JSON in their comment field (example):
 ## 🐛 Bug Reports & Feature Requests
 
 Please use the [GitHub Issues](https://github.com/gamerturuu/df-metadata-customizer/issues) page to report bugs or request new features.
+
+## 📈 Download Analytics
+
+Download statistics are updated automatically every day via GitHub Actions.
+
+![Download Graph](analytics/download_graph.png)
+
+For the full per-release and per-asset breakdown, see [analytics/ANALYTICS.md](analytics/ANALYTICS.md).
+
+<details>
+<summary>⚙️ How analytics work</summary>
+
+- **Script:** [`analytics/fetch_analytics.py`](analytics/fetch_analytics.py) queries the GitHub Releases API, aggregates download counts per release and per asset, generates a bar chart (`analytics/download_graph.png`), and writes a Markdown summary table (`analytics/ANALYTICS.md`).
+- **Schedule:** The [Update Download Analytics](.github/workflows/analytics.yml) workflow runs daily at 00:00 UTC and commits updated files automatically.
+- **Manual run:** The workflow can also be triggered manually via _Actions → Update Download Analytics → Run workflow_.
+
+</details>
 
 ## License
 
