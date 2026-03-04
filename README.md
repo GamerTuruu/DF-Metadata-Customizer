@@ -1,4 +1,4 @@
-# Database Reformatter — Metadata Customizer
+# Database Formatter — Metadata Customizer
 
 [![Total Downloads](https://img.shields.io/github/downloads/GamerTuruu/DF-Metadata-Customizer/total?style=flat&label=Total%20Downloads&color=0e639c)](https://github.com/GamerTuruu/DF-Metadata-Customizer/releases)
 
@@ -259,4 +259,5 @@ For the full per-release and per-asset breakdown, see [analytics/ANALYTICS.md](a
 ## License
 
 This project is licensed under the MIT License.
+
 
