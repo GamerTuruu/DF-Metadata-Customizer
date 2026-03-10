@@ -1,8 +1,8 @@
 # Download Analytics
 
-_Last updated: 2026-03-09 01:08 UTC_
+_Last updated: 2026-03-10 01:02 UTC_
 
-**Total Downloads: 99**
+**Total Downloads: 100**
 
 ## Graph
 
@@ -21,7 +21,7 @@ _Last updated: 2026-03-09 01:08 UTC_
 | v1.4.0 | DFMetadataCustomizer-v1.4.0-Linux.zip | 6 |
 | v1.4.0 | DFMetadataCustomizer-v1.4.0-macOS.zip | 2 |
 | v1.4.0 | DFMetadataCustomizer-v1.4.0-Windows.zip | 12 |
-| v1.3.0 | DFMetadataCustomizer-v1.3.0-Linux.zip | 3 |
+| v1.3.0 | DFMetadataCustomizer-v1.3.0-Linux.zip | 4 |
 | v1.3.0 | DFMetadataCustomizer-v1.3.0-macOS.zip | 3 |
 | v1.3.0 | DFMetadataCustomizer-v1.3.0-Windows.zip | 10 |
 | 1.2.1 | DF_Metadata_Customizer.zip | 23 |
