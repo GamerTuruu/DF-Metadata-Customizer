@@ -710,7 +710,7 @@ class MainWindow(QMainWindow):
             item = QTreeWidgetItem(self.tree)
             
             # Set all columns
-            for col_idx in range(9):
+            for col_idx in range(12):
                 key = column_map.get(col_idx, "")
                 value = file_data.get(key, "")
                 if value is None:
