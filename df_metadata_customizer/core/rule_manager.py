@@ -16,7 +16,10 @@ class RuleManager:
 
     COL_MAP: Final = {
         MetadataFields.UI_TITLE: MetadataFields.TITLE,
+        MetadataFields.UI_TITLEOG: MetadataFields.TITLEOG,
+        MetadataFields.UI_IDENTIFY: MetadataFields.IDENTIFY,
         MetadataFields.UI_ARTIST: MetadataFields.ARTIST,
+        MetadataFields.UI_ARTISTOG: MetadataFields.ARTISTOG,
         MetadataFields.UI_COVER_ARTIST: MetadataFields.COVER_ARTIST,
         MetadataFields.UI_VERSION: MetadataFields.VERSION,
         MetadataFields.UI_DISC: MetadataFields.DISC,

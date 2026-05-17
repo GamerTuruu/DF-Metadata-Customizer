@@ -46,7 +46,10 @@ class PreviewPanelManager:
             return id3_data.get(field_key, fallback)
 
         title = get_tag_value(MetadataFields.TITLE)
+        titleog = get_tag_value(MetadataFields.TITLEOG)
+        identify = get_tag_value(MetadataFields.IDENTIFY)
         artist = get_tag_value(MetadataFields.ARTIST)
+        artistog = get_tag_value(MetadataFields.ARTISTOG)
         album = get_tag_value("Album")
         disc = get_tag_value(MetadataFields.DISC)
         track = get_tag_value(MetadataFields.TRACK)

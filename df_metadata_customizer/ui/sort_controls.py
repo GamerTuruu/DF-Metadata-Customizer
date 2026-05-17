@@ -136,7 +136,10 @@ class SortControlsManager:
         # Field selector - stretches to fill available space
         field_combo = NoScrollComboBox()
         field_combo.addItem("Title")
+        field_combo.addItem("TitleOG")
+        field_combo.addItem("Identify")
         field_combo.addItem("Artist")
+        field_combo.addItem("ArtistOG")
         field_combo.addItem("Cover Artist")
         field_combo.addItem("Version")
         field_combo.addItem("Date")

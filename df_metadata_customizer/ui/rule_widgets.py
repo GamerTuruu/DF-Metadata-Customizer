@@ -98,7 +98,8 @@ class RuleRow(QFrame):
         # Field selector
         self.field_combo = NoScrollComboBox()
         field_names = [
-            "Title", "Artist", "CoverArtist", "Album", "Version",
+            "Title", "TitleOG", "Identify", "Artist",
+            "ArtistOG", "CoverArtist", "Album", "Version", 
             "Date", "Disc", "Track", "File", "Special"
         ]
         self.field_combo.addItems(field_names)

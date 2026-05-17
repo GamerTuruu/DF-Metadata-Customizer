@@ -52,7 +52,10 @@ class MainWindow(QMainWindow):
 
     TREE_COLUMNS = [
         MetadataFields.TITLE,
+        MetadataFields.TITLEOG,
+        MetadataFields.IDENTIFY,
         MetadataFields.ARTIST,
+        MetadataFields.ARTISTOG,
         MetadataFields.COVER_ARTIST,
         MetadataFields.VERSION,
         MetadataFields.DATE,
@@ -118,7 +121,10 @@ class MainWindow(QMainWindow):
         self.save_json_btn = None
         self.save_filename_btn = None
         self.preview_title_label = None
+        self.preview_titleog_label = None
+        self.preview_identify_label = None
         self.preview_artist_label = None
+        self.preview_artistog_label = None
         self.preview_album_label = None
         self.preview_details_label = None
         self.preview_versions_label = None
@@ -682,15 +688,18 @@ class MainWindow(QMainWindow):
         
         # Map tree columns to actual file data keys
         column_map = {
-            0: "Title",           # Title
-            1: "Artist",          # Artist
-            2: "CoverArtist",     # Cover Artist
-            3: "Version",         # Version
-            4: "Date",            # Date
-            5: "Discnumber",      # Disc
-            6: "Track",           # Track
-            7: "Special",         # Special
-            8: "path",            # Filename
+            0:  "Title",           # Title
+            1:  "TitleOG",        # Title OG
+            2:  "Identify",        # Identify
+            3:  "Artist",          # Artist
+            4:  "ArtistOG",       # Artist OG
+            5:  "CoverArtist",     # Cover Artist
+            6:  "Version",         # Version
+            7:  "Date",            # Date
+            8:  "Discnumber",      # Disc
+            9:  "Track",           # Track
+            10: "Special",         # Special
+            11: "path",            # Filename
         }
         
         for tree_row, idx in enumerate(self.filtered_indices):

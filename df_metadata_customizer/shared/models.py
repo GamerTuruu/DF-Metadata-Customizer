@@ -25,7 +25,10 @@ class SongMetadataModel:
 
     file_path: Path
     title: Optional[str] = None
+    titleog: Optional[str] = None
+    identify: Optional[str] = None
     artist: Optional[str] = None
+    artistog: Optional[str] = None
     cover_artist: Optional[str] = None
     date: Optional[str] = None
     version: Optional[str] = None
