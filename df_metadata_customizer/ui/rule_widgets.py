@@ -100,7 +100,7 @@ class RuleRow(QFrame):
         field_names = [
             "Title", "TitleOG", "Identify", "Artist",
             "ArtistOG", "CoverArtist", "Album", "Version", 
-            "Date", "Disc", "Track", "File", "Special"
+            "Date", "Discnumber", "Track", "File", "Special"
         ]
         self.field_combo.addItems(field_names)
         self.field_combo.setFixedWidth(120)
