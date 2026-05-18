@@ -103,7 +103,7 @@ Download [Neuro Karaoke Archive V3](https://drive.google.com/drive/folders/1B1Va
    Typical fields:
 
    ```text
-   Date, Title, Artist, CoverArtist, Version, Discnumber, Track, Comment, Special
+   Date, Title, TitleOG, Identify, Artist, ArtistOG, CoverArtist, Version, Discnumber, Track, Comment, Special
    ```
 
 3. Create Rules:
@@ -186,7 +186,10 @@ The app expects audio files to contain JSON in their comment field (example):
 ```json
 {
   "Title": "Original Song Name",
+  "TitleOG": "Song Name in original language if non-English",
+  "Identify": "Song version Identifier (eg: Neuro Ver., Evil Ver, ...)",
   "Artist": "Original Artist", 
+  "ArtistOG": "Original Artists in original language if non-English",
   "CoverArtist": "Neuro",
   "Version": "2",
   "Discnumber": "01",
