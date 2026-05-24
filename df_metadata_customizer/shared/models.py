@@ -32,6 +32,7 @@ class SongMetadataModel:
     cover_artist: Optional[str] = None
     date: Optional[str] = None
     version: Optional[str] = None
+    album: Optional[str] = None
     discnumber: Optional[int] = None
     track: Optional[int] = None
     comment: Optional[str] = None

@@ -29,6 +29,7 @@ class FileManager:
             MetadataFields.ARTISTOG: pl.Utf8,
             MetadataFields.COVER_ARTIST: pl.Utf8,
             MetadataFields.VERSION: pl.Float64,
+            MetadataFields.ALBUM: pl.Utf8,
             MetadataFields.DISC: pl.Utf8,
             MetadataFields.TRACK: pl.Utf8,
             MetadataFields.DATE: pl.Utf8,
@@ -60,7 +61,7 @@ class FileManager:
             if artistog == "None":
                 artistog = ""
             cover_artist = jsond.get(MetadataFields.COVER_ARTIST, "")
-            song_id = f"{title}|{artist}|{cover_artist}"
+            song_id = f"{title}|{identify}|{artist}|{cover_artist}"
 
             # Robust version parsing
             raw_ver = jsond.get(MetadataFields.VERSION, 0)
@@ -82,6 +83,7 @@ class FileManager:
                     MetadataFields.ARTISTOG: artistog,
                     MetadataFields.COVER_ARTIST: cover_artist,
                     MetadataFields.VERSION: version,
+                    MetadataFields.ALBUM: jsond.get(MetadataFields.ALBUM, ""),
                     MetadataFields.DISC: jsond.get(MetadataFields.DISC, ""),
                     MetadataFields.TRACK: jsond.get(MetadataFields.TRACK, ""),
                     MetadataFields.DATE: jsond.get(MetadataFields.DATE, ""),
@@ -207,12 +209,10 @@ class FileManager:
             return None
 
         title = json_data.get(MetadataFields.TITLE, "")
-        titleog = json_data.get(MetadataFields.TITLEOG, "")
         identify = json_data.get(MetadataFields.IDENTIFY, "")
         artist = json_data.get(MetadataFields.ARTIST, "")
-        artistog = json_data.get(MetadataFields.ARTISTOG, "")
         cover_artist = json_data.get(MetadataFields.COVER_ARTIST, "")
-        song_id = f"{title}|{artist}|{cover_artist}"
+        song_id = f"{title}|{identify}|{artist}|{cover_artist}"
         version = json_data.get(MetadataFields.VERSION, 0)
         is_latest = self.is_latest_version(song_id, float(version))
 

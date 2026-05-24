@@ -75,10 +75,14 @@ class SortHandler:
                 for field_text, ascending in sort_keys:
                     field_map = {
                         "Title": MetadataFields.TITLE,
+                        "TitleOG": MetadataFields.TITLEOG,
+                        "Identify": MetadataFields.IDENTIFY,
                         "Artist": MetadataFields.ARTIST,
+                        "ArtistOG": MetadataFields.ARTISTOG,
                         "Cover Artist": MetadataFields.COVER_ARTIST,
                         "Version": MetadataFields.VERSION,
                         "Date": MetadataFields.DATE,
+                        "Album": MetadataFields.ALBUM,
                         "Disc": MetadataFields.DISC,
                         "Track": MetadataFields.TRACK,
                         "Special": MetadataFields.SPECIAL,

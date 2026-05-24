@@ -14,6 +14,7 @@ class MetadataFields(StrEnum):
     ARTISTOG = "ArtistOG"
     COVER_ARTIST = "CoverArtist"
     VERSION = "Version"
+    ALBUM = "Album"
     DISC = "Discnumber"
     TRACK = "Track"
     DATE = "Date"
@@ -29,6 +30,7 @@ class MetadataFields(StrEnum):
     UI_ARTISTOG = "artist og"
     UI_COVER_ARTIST = "coverartist"
     UI_VERSION = "version"
+    UI_ALBUM = "album"
     UI_DISC = "disc"
     UI_TRACK = "track"
     UI_DATE = "date"
@@ -106,6 +108,8 @@ class SongMetadata:
             return self.coverartist
         if f == MetadataFields.UI_VERSION:
             return self.version_str
+        if f == MetadataFields.UI_ALBUM:
+            return self.album
         if f in (MetadataFields.UI_DISC, MetadataFields.DISC.lower()):
             return self.disc
         if f == MetadataFields.UI_TRACK:
@@ -160,6 +164,11 @@ class SongMetadata:
         """Return the version as a string."""
         v = self._data.get(MetadataFields.VERSION, 0)
         return str(int(v)) if isinstance(v, float) and v.is_integer() else str(v)
+
+    @property
+    def album(self) -> str:
+        """Return the album title"""
+        return self._data.get(MetadataFields.ALBUM) or ""
 
     @property
     def disc(self) -> str:

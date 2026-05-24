@@ -57,7 +57,7 @@ class TreeViewManager:
         header.sectionMoved.connect(self.on_column_moved)
         
         # Set column widths
-        widths = [250, 250, 250, 250, 250, 130, 40, 110, 20, 85, 20, 350]
+        widths = [250, 250, 250, 250, 250, 130, 40, 110, 250, 20, 85, 20, 350]
         for i, w in enumerate(widths[:len(col_labels)]):
             tree.setColumnWidth(i, w)
         

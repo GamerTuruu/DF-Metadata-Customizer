@@ -103,7 +103,7 @@ Download [Neuro Karaoke Archive V3](https://drive.google.com/drive/folders/1B1Va
    Typical fields:
 
    ```text
-   Date, Title, TitleOG, Identify, Artist, ArtistOG, CoverArtist, Version, Discnumber, Track, Comment, Special
+   Date, Title, TitleOG, Identify, Artist, ArtistOG, CoverArtist, Version, Album, Discnumber, Track, Comment, Special
    ```
 
 3. Create Rules:
