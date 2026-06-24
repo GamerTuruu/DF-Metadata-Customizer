@@ -52,10 +52,14 @@ class MainWindow(QMainWindow):
 
     TREE_COLUMNS = [
         MetadataFields.TITLE,
+        MetadataFields.TITLEOG,
+        MetadataFields.IDENTIFY,
         MetadataFields.ARTIST,
+        MetadataFields.ARTISTOG,
         MetadataFields.COVER_ARTIST,
         MetadataFields.VERSION,
         MetadataFields.DATE,
+        MetadataFields.ALBUM,
         MetadataFields.DISC,
         MetadataFields.TRACK,
         MetadataFields.SPECIAL,
@@ -682,15 +686,19 @@ class MainWindow(QMainWindow):
         
         # Map tree columns to actual file data keys
         column_map = {
-            0: "Title",           # Title
-            1: "Artist",          # Artist
-            2: "CoverArtist",     # Cover Artist
-            3: "Version",         # Version
-            4: "Date",            # Date
-            5: "Discnumber",      # Disc
-            6: "Track",           # Track
-            7: "Special",         # Special
-            8: "path",            # Filename
+            0:  "Title",           # Title
+            1:  "TitleOG",         # Title OG
+            2:  "Identify",        # Identify
+            3:  "Artist",          # Artist
+            4:  "ArtistOG",        # Artist OG
+            5:  "CoverArtist",     # Cover Artist
+            6:  "Version",         # Version
+            7:  "Date",            # Date
+            8:  "Album",           # Album 
+            9:  "Discnumber",      # Disc
+            10: "Track",           # Track
+            11: "Special",         # Special
+            12: "path",            # Filename
         }
         
         for tree_row, idx in enumerate(self.filtered_indices):
@@ -701,7 +709,7 @@ class MainWindow(QMainWindow):
             item = QTreeWidgetItem(self.tree)
             
             # Set all columns
-            for col_idx in range(9):
+            for col_idx in range(13):
                 key = column_map.get(col_idx, "")
                 value = file_data.get(key, "")
                 if value is None:
@@ -817,9 +825,12 @@ class MainWindow(QMainWindow):
         song_id = file_data.get("song_id")
         if not song_id:
             title = file_data.get(MetadataFields.TITLE, "")
+            identify = file_data.get(MetadataFields.IDENTIFY, "")
+            if identify == "None":
+                identify = ""
             artist = file_data.get(MetadataFields.ARTIST, "")
             cover_artist = file_data.get(MetadataFields.COVER_ARTIST, "")
-            song_id = f"{title}|{artist}|{cover_artist}"
+            song_id = f"{title}|{identify}|{artist}|{cover_artist}"
 
         version = file_data.get(MetadataFields.VERSION, 0)
         try:

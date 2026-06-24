@@ -136,10 +136,14 @@ class SortControlsManager:
         # Field selector - stretches to fill available space
         field_combo = NoScrollComboBox()
         field_combo.addItem("Title")
+        field_combo.addItem("TitleOG")
+        field_combo.addItem("Identify")
         field_combo.addItem("Artist")
+        field_combo.addItem("ArtistOG")
         field_combo.addItem("Cover Artist")
         field_combo.addItem("Version")
         field_combo.addItem("Date")
+        field_combo.addItem("Album")
         field_combo.addItem("Disc")
         field_combo.addItem("Track")
         field_combo.addItem("Special")
@@ -296,7 +300,7 @@ class SortControlsManager:
             
             # Field selector
             new_field_combo = NoScrollComboBox()
-            new_field_combo.addItems(["Title", "Artist", "Cover Artist", "Version", "Date", "Disc", "Track", "Special", "Filename"])
+            new_field_combo.addItems(["Title", "TitleOG", "Identify", "Artist", "ArtistOG", "Cover Artist", "Version", "Date", "Album", "Disc", "Track", "Special", "Filename"])
             new_field_combo.setCurrentText(field_text)
             new_field_combo.setMinimumWidth(110)
             new_field_combo.setMaxVisibleItems(15)

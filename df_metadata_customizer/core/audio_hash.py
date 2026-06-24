@@ -22,36 +22,45 @@ def get_audio_hash(file_path: str) -> str | None:
         Hexadecimal hash string, or None if an error occurred
     """
     try:
-        file_size = os.path.getsize(file_path)
-        if file_size < 1_000_000:
-            print(f"{file_path} is too small!")
+        try:
+            audio_tags = ID3(file_path)
+            header_size = audio_tags.size  # Mutagen provides the full tag size including header
+        except ID3NoHeaderError:
+            header_size = 0
+
+        print(file_path.stat().st_size)
+        file_size = file_path.stat().st_size
+        if file_size < 3000:
+            print(f"{file_path.name} is too small!")
             return None
 
         with open(file_path, 'rb') as f:
+            file_data = f.read()
+
             footer_size = 0
-            if file_size > 128:
-                f.seek(-128, os.SEEK_END)
-                if f.read(3) == b'TAG':
-                    footer_size = 128
+            f.seek(-128, 2) # Seek 128 bytes from the end (2)
+            if f.read(3) == b'TAG':
+                footer_size = 128
+            
 
-            end_index = file_size - footer_size - 1_000_000
-            start_index = end_index - 987
-            if start_index < 0:
-                print(f"{file_path} is too small for hashing window!")
-                return None
+            if (file_size - footer_size - 1_000_000) > 987: # check to prevent negative indexes
+                end_index = file_size - footer_size - 1_000_000 ### about a Mb offset for the audio
 
-            f.seek(start_index)
-            raw_audio = f.read(987)
-            if len(raw_audio) != 987:
-                print(f"Error processing {file_path}: insufficient data read")
-                return None
+            else:
+                end_index = int((file_size - footer_size - header_size) * 3 / 4 + header_size)
 
+            print(f"End Index: {end_index}")
+
+            start_index = end_index - 987 ### reads a 987 bytes for the hash
+
+            raw_audio = file_data[start_index:end_index]
+
+        # 4. Hash the raw audio
         return xxhash.xxh64(raw_audio).hexdigest()
 
     except Exception as e:
         print(f"Error processing {file_path}: {e}")
         return None
-
 
 def get_audio_hash_optimized(file_path: str, chunk_size: int = 65536) -> str | None:
     """

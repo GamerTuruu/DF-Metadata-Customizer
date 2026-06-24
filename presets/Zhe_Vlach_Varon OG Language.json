@@ -1,0 +1,240 @@
+{
+  "title": [
+    {
+      "logic": "OR",
+      "if_field": "TitleOG",
+      "if_operator": "is not empty",
+      "if_value": "",
+      "then_template": "",
+      "is_first": true
+    },
+    {
+      "logic": "AND",
+      "if_field": "Identify",
+      "if_operator": "is not empty",
+      "if_value": "",
+      "then_template": "{TitleOG} ({Identify})"
+    },
+    {
+      "logic": "OR",
+      "if_field": "TitleOG",
+      "if_operator": "is not empty",
+      "if_value": "",
+      "then_template": "{TitleOG}"
+    },
+    {
+      "logic": "OR",
+      "if_field": "Title",
+      "if_operator": "is not empty",
+      "if_value": "",
+      "then_template": ""
+    },
+    {
+      "logic": "AND",
+      "if_field": "Identify",
+      "if_operator": "is not empty",
+      "if_value": "",
+      "then_template": "{Title} ({Identify})"
+    },
+    {
+      "logic": "OR",
+      "if_field": "Title",
+      "if_operator": "is not empty",
+      "if_value": "",
+      "then_template": "{Title}"
+    }
+  ],
+  "artist": [
+    {
+      "logic": "OR",
+      "if_field": "Special",
+      "if_operator": "is",
+      "if_value": "1",
+      "then_template": ""
+    },
+    {
+      "logic": "AND",
+      "if_field": "ArtistOG",
+      "if_operator": "is not empty",
+      "if_value": "",
+      "then_template": "{CoverArtist} - {ArtistOG}"
+    },
+    {
+      "logic": "OR",
+      "if_field": "Special",
+      "if_operator": "is",
+      "if_value": "1",
+      "then_template": ""
+    },
+    {
+      "logic": "AND",
+      "if_field": "ArtistOG",
+      "if_operator": "is empty",
+      "if_value": "",
+      "then_template": "{CoverArtist} - {Artist}"
+    },
+    {
+      "logic": "OR",
+      "if_field": "CoverArtist",
+      "if_operator": "is",
+      "if_value": "Evil",
+      "then_template": ""
+    },
+    {
+      "logic": "AND",
+      "if_field": "ArtistOG",
+      "if_operator": "is not empty",
+      "if_value": "",
+      "then_template": "Evil - {ArtistOG}"
+    },
+    {
+      "logic": "OR",
+      "if_field": "CoverArtist",
+      "if_operator": "is",
+      "if_value": "Evil",
+      "then_template": ""
+    },
+    {
+      "logic": "AND",
+      "if_field": "ArtistOG",
+      "if_operator": "is empty",
+      "if_value": "",
+      "then_template": "Evil - {Artist}"
+    },
+    {
+      "logic": "OR",
+      "if_field": "CoverArtist",
+      "if_operator": "is",
+      "if_value": "Neuro & Evil",
+      "then_template": ""
+    },
+    {
+      "logic": "AND",
+      "if_field": "ArtistOG",
+      "if_operator": "is not empty",
+      "if_value": "",
+      "then_template": "{CoverArtist} - {ArtistOG}"
+    },
+    {
+      "logic": "OR",
+      "if_field": "CoverArtist",
+      "if_operator": "is",
+      "if_value": "Neuro & Evil",
+      "then_template": ""
+    },
+    {
+      "logic": "AND",
+      "if_field": "ArtistOG",
+      "if_operator": "is empty",
+      "if_value": "",
+      "then_template": "{CoverArtist} - {Artist}"
+    },
+    {
+      "logic": "OR",
+      "if_field": "CoverArtist",
+      "if_operator": "is",
+      "if_value": "Neuro",
+      "then_template": ""
+    },
+    {
+      "logic": "AND",
+      "if_field": "Version",
+      "if_operator": "starts with",
+      "if_value": "1",
+      "then_template": ""
+    },
+    {
+      "logic": "AND",
+      "if_field": "ArtistOG",
+      "if_operator": "is not empty",
+      "if_value": "",
+      "then_template": "Neuro [v1] - {ArtistOG}"
+    },
+    {
+      "logic": "OR",
+      "if_field": "CoverArtist",
+      "if_operator": "is",
+      "if_value": "Neuro",
+      "then_template": ""
+    },
+    {
+      "logic": "AND",
+      "if_field": "Version",
+      "if_operator": "starts with",
+      "if_value": "1",
+      "then_template": ""
+    },
+    {
+      "logic": "AND",
+      "if_field": "ArtistOG",
+      "if_operator": "is empty",
+      "if_value": "",
+      "then_template": "Neuro [v1] - {Artist}"
+    },
+    {
+      "logic": "OR",
+      "if_field": "CoverArtist",
+      "if_operator": "is",
+      "if_value": "Neuro",
+      "then_template": ""
+    },
+    {
+      "logic": "AND",
+      "if_field": "Version",
+      "if_operator": "starts with",
+      "if_value": "2",
+      "then_template": ""
+    },
+    {
+      "logic": "AND",
+      "if_field": "ArtistOG",
+      "if_operator": "is not empty",
+      "if_value": "",
+      "then_template": "Neuro [v2] - {ArtistOG}"
+    },
+    {
+      "logic": "OR",
+      "if_field": "CoverArtist",
+      "if_operator": "is",
+      "if_value": "Neuro",
+      "then_template": ""
+    },
+    {
+      "logic": "AND",
+      "if_field": "Version",
+      "if_operator": "starts with",
+      "if_value": "2",
+      "then_template": ""
+    },
+    {
+      "logic": "AND",
+      "if_field": "ArtistOG",
+      "if_operator": "is empty",
+      "if_value": "",
+      "then_template": "Neuro [v2] - {Artist}"
+    },
+    {
+      "logic": "OR",
+      "if_field": "ArtistOG",
+      "if_operator": "is not empty",
+      "if_value": "",
+      "then_template": "{CoverArtist} - {ArtistOG}"
+    },
+    {
+      "logic": "OR",
+      "if_field": "ArtistOG",
+      "if_operator": "is empty",
+      "if_value": "",
+      "then_template": "{CoverArtist} - {Artist}"
+    }
+  ],
+  "album": [
+    {
+      "logic": "AND",
+      "if_field": "Album",
+      "if_operator": "is not empty",
+      "if_value": "",
+      "then_template": "{Album}"
+    }
+  ]
+}
