@@ -8,9 +8,13 @@ class MetadataFields(StrEnum):
 
     # JSON keys
     TITLE = "Title"
+    TITLEOG = "TitleOG"
+    IDENTIFY = "Identify"
     ARTIST = "Artist"
+    ARTISTOG = "ArtistOG"
     COVER_ARTIST = "CoverArtist"
     VERSION = "Version"
+    ALBUM = "Album"
     DISC = "Discnumber"
     TRACK = "Track"
     DATE = "Date"
@@ -20,9 +24,13 @@ class MetadataFields(StrEnum):
 
     # UI keys
     UI_TITLE = "title"
+    UI_TITLEOG = "title og"
+    UI_IDENTIFY = "Identify"
     UI_ARTIST = "artist"
+    UI_ARTISTOG = "artist og"
     UI_COVER_ARTIST = "coverartist"
     UI_VERSION = "version"
+    UI_ALBUM = "album"
     UI_DISC = "disc"
     UI_TRACK = "track"
     UI_DATE = "date"
@@ -88,12 +96,20 @@ class SongMetadata:
         # JSON / Standard access
         if f == MetadataFields.UI_TITLE:
             return self.title
+        if f == MetadataFields.UI_TITLEOG:
+            return self.titleog
+        if f == MetadataFields.IDENTIFY:
+            return self.identify
         if f == MetadataFields.UI_ARTIST:
             return self.artist
+        if f == MetadataFields.UI_ARTISTOG:
+            return self.artistog
         if f == MetadataFields.UI_COVER_ARTIST:
             return self.coverartist
         if f == MetadataFields.UI_VERSION:
             return self.version_str
+        if f == MetadataFields.UI_ALBUM:
+            return self.album
         if f in (MetadataFields.UI_DISC, MetadataFields.DISC.lower()):
             return self.disc
         if f == MetadataFields.UI_TRACK:
@@ -119,9 +135,24 @@ class SongMetadata:
         return self._data.get(MetadataFields.TITLE) or ""
 
     @property
+    def titleog(self) -> str:
+        """Return the song title in original language."""
+        return self._data.get(MetadataFields.TITLEOG) or self.title()
+    
+    @property
+    def identify(self) -> str:
+        """Return song version identifier."""
+        return self._data.get(MetadataFields.IDENTIFY) or ""
+
+    @property
     def artist(self) -> str:
         """Return the song artist."""
         return self._data.get(MetadataFields.ARTIST) or ""
+    
+    @property
+    def artistog(self) -> str:
+        """Return the song artist in original language."""
+        return self._data.get(MetadataFields.ARTISTOG) or self.artist()
 
     @property
     def coverartist(self) -> str:
@@ -133,6 +164,11 @@ class SongMetadata:
         """Return the version as a string."""
         v = self._data.get(MetadataFields.VERSION, 0)
         return str(int(v)) if isinstance(v, float) and v.is_integer() else str(v)
+
+    @property
+    def album(self) -> str:
+        """Return the album title"""
+        return self._data.get(MetadataFields.ALBUM) or ""
 
     @property
     def disc(self) -> str:

@@ -1464,7 +1464,7 @@ class SongEditorManager:
 
         base = self._apply_rules_to_field(base, title_rules, MetadataFields.TITLE)
         base = self._apply_rules_to_field(base, artist_rules, MetadataFields.ARTIST)
-        base = self._apply_rules_to_field(base, album_rules, "Album")
+        base = self._apply_rules_to_field(base, album_rules, MetadataFields.ALBUM)
 
         # Block signals to prevent textChanged from triggering styling updates during preset application
         if self.id3_fields.get("Title"):
@@ -1477,7 +1477,7 @@ class SongEditorManager:
             self.id3_fields["Artist"].blockSignals(False)
         if self.id3_fields.get("Album"):
             self.id3_fields["Album"].blockSignals(True)
-            self.id3_fields["Album"].setText(str(base.get("Album", "")))
+            self.id3_fields["Album"].setText(str(base.get(MetadataFields.ALBUM, "")))
             self.id3_fields["Album"].blockSignals(False)
         
         # Only mark preset as applied if it actually has rules
@@ -1638,7 +1638,7 @@ class SongEditorManager:
 
         title = id3_data.get("Title") or json_data.get(MetadataFields.TITLE, "")
         artist = id3_data.get("Artist") or json_data.get(MetadataFields.ARTIST, "")
-        album = id3_data.get("Album", "")
+        album = id3_data.get("Album") or json_data.get(MetadataFields.ALBUM, "")
         track = id3_data.get("Track") or json_data.get(MetadataFields.TRACK, "")
         disc = id3_data.get("Discnumber") or json_data.get(MetadataFields.DISC, "")
         date = id3_data.get("Date") or json_data.get(MetadataFields.DATE, "")
