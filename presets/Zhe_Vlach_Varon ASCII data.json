@@ -1,0 +1,64 @@
+{
+  "title": [
+    {
+      "logic": "OR",
+      "if_field": "Identify",
+      "if_operator": "is not empty",
+      "if_value": "",
+      "then_template": "{Title} ({Identify})"
+    },
+    {
+      "logic": "OR",
+      "if_field": "Identify",
+      "if_operator": "is empty",
+      "if_value": "",
+      "then_template": "{Title}"
+    }
+  ],
+  "artist": [
+    {
+      "logic": "OR",
+      "if_field": "Special",
+      "if_operator": "is",
+      "if_value": "1",
+      "then_template": "{CoverArtist} - {Artist}"
+    },
+    {
+      "logic": "OR",
+      "if_field": "CoverArtist",
+      "if_operator": "contains",
+      "if_value": "Evil",
+      "then_template": "{CoverArtist} - {Artist}"
+    },
+    {
+      "logic": "OR",
+      "if_field": "Version",
+      "if_operator": "starts with",
+      "if_value": "1",
+      "then_template": "Neuro [v1] - {Artist}"
+    },
+    {
+      "logic": "OR",
+      "if_field": "Version",
+      "if_operator": "starts with",
+      "if_value": "2",
+      "then_template": "Neuro [v2] - {Artist}"
+    },
+    {
+      "logic": "OR",
+      "if_field": "CoverArtist",
+      "if_operator": "is",
+      "if_value": "Neuro",
+      "then_template": "Neuro - {Artist}"
+    }
+  ],
+  "album": [
+    {
+      "logic": "AND",
+      "if_field": "Album",
+      "if_operator": "is not empty",
+      "if_value": "",
+      "then_template": "{Album}"
+    }
+  ]
+}
