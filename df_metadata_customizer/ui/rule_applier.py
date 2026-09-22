@@ -54,7 +54,7 @@ class RuleApplier:
         tab_targets = {
             "title": MetadataFields.TITLE,
             "artist": MetadataFields.ARTIST,
-            "album": "Album",
+            "album": MetadataFields.ALBUM,
         }
 
         for tab_name in ["title", "artist", "album"]:
@@ -133,7 +133,7 @@ class RuleApplier:
 
         id3_out["Title"] = str(rule_result.get(MetadataFields.TITLE, id3_out.get("Title", "")))
         id3_out["Artist"] = str(rule_result.get(MetadataFields.ARTIST, id3_out.get("Artist", "")))
-        id3_out["Album"] = str(rule_result.get("Album", id3_out.get("Album", "")))
+        id3_out["Album"] = str(rule_result.get(MetadataFields.ALBUM, id3_out.get("Album", "")))
 
         if not id3_out.get("Track"):
             id3_out["Track"] = str(raw_json.get(MetadataFields.TRACK, ""))
