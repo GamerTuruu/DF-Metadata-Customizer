@@ -46,8 +46,9 @@ class PreviewPanelManager:
             return id3_data.get(field_key, fallback)
 
         title = get_tag_value(MetadataFields.TITLE)
+        identify = get_tag_value(MetadataFields.IDENTIFY)
         artist = get_tag_value(MetadataFields.ARTIST)
-        album = get_tag_value("Album")
+        album = get_tag_value(MetadataFields.ALBUM)
         disc = get_tag_value(MetadataFields.DISC)
         track = get_tag_value(MetadataFields.TRACK)
         date = get_tag_value(MetadataFields.DATE)
@@ -57,12 +58,12 @@ class PreviewPanelManager:
         rule_applied = {
             MetadataFields.TITLE: False,
             MetadataFields.ARTIST: False,
-            "Album": False,
+            MetadataFields.ALBUM: False,
         }
         tab_targets = {
             "title": MetadataFields.TITLE,
             "artist": MetadataFields.ARTIST,
-            "album": "Album",
+            "album": MetadataFields.ALBUM,
         }
         for tab_name in ["title", "artist", "album"]:
             rules = self.parent.rules_panel_manager.collect_rules_for_tab(tab_name)
@@ -77,7 +78,7 @@ class PreviewPanelManager:
                     if_operator = rule_data.get("if_operator", "")
                     if_value = rule_data.get("if_value", "")
                     then_template = rule_data.get("then_template", "")
-                    is_first = rule_data.get("is_first", False)
+                    is_first = rule_data.get("is_first", False) if i > 0 else True
 
                     is_group_marker = (logic in ["AND", "OR"]) and not then_template
                     is_first_with_template = is_first and then_template
@@ -135,20 +136,21 @@ class PreviewPanelManager:
 
         preview_title = preview_data.get(MetadataFields.TITLE, title)
         preview_artist = preview_data.get(MetadataFields.ARTIST, artist)
-        preview_album = preview_data.get("Album", album)
+        preview_album = preview_data.get(MetadataFields.ALBUM, album)
 
         if not rule_applied.get(MetadataFields.TITLE, False):
             preview_title = id3_data.get("Title", preview_title)
         if not rule_applied.get(MetadataFields.ARTIST, False):
             preview_artist = id3_data.get("Artist", preview_artist)
-        if not rule_applied.get("Album", False):
+        if not rule_applied.get(MetadataFields.ALBUM, False):
             preview_album = id3_data.get("Album", preview_album)
 
-        song_key = (title, artist, file_data.get(MetadataFields.COVER_ARTIST, ""))
+        song_key = (title, identify, artist, file_data.get(MetadataFields.COVER_ARTIST, ""))
         versions = []
         for f in self.parent.song_files:
             f_key = (
                 f.get(MetadataFields.TITLE, ""),
+                f.get(MetadataFields.IDENTIFY, ""),
                 f.get(MetadataFields.ARTIST, ""),
                 f.get(MetadataFields.COVER_ARTIST, ""),
             )
@@ -186,11 +188,11 @@ class PreviewPanelManager:
 
         title_color = base_text if rule_applied.get(MetadataFields.TITLE, False) else dim_text
         artist_color = base_text if rule_applied.get(MetadataFields.ARTIST, False) else dim_text
-        album_color = base_text if rule_applied.get("Album", False) else dim_text
+        album_color = base_text if rule_applied.get(MetadataFields.ALBUM, False) else dim_text
 
         title_style = "font-style: italic;" if not rule_applied.get(MetadataFields.TITLE, False) else ""
         artist_style = "font-style: italic;" if not rule_applied.get(MetadataFields.ARTIST, False) else ""
-        album_style = "font-style: italic;" if not rule_applied.get("Album", False) else ""
+        album_style = "font-style: italic;" if not rule_applied.get(MetadataFields.ALBUM, False) else ""
 
         self.parent.preview_title_label.setText(preview_title)
         self.parent.preview_title_label.setStyleSheet(preview_box_style + f"\n            QLabel {{ color: {title_color}; {title_style}}}")

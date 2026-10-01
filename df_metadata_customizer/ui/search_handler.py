@@ -54,9 +54,12 @@ class SearchHandler:
         song_id = file_data.get("song_id")
         if not song_id:
             title = file_data.get(MetadataFields.TITLE, "")
+            identify = file_data.get(MetadataFields.IDENTIFY, "")
+            if identify == "None":
+                identify = ""
             artist = file_data.get(MetadataFields.ARTIST, "")
             cover_artist = file_data.get(MetadataFields.COVER_ARTIST, "")
-            song_id = f"{title}|{artist}|{cover_artist}"
+            song_id = f"{title}|{identify}|{artist}|{cover_artist}"
 
         version = file_data.get(MetadataFields.VERSION, 0)
         try:
